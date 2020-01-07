@@ -1,0 +1,30 @@
+"0","```r
+#install.packages('RColorBrewer')
+library('RColorBrewer')
+SSQ_plot <- data.frame(matrix(ncol = 3, nrow = 5 * 12))
+x <- c(\"Item\", \"Loading\", \"Factors\")
+colnames(SSQ_plot) <- x
+x_axis_lab <- c('Speech#1','Speech#4','Speech#10','Speech#11','Speech#12','Space#6','Space#9','Space#13','Sound#2','Sound#7','Sound#9','Sound#14')
+colnames(data.ssq) <- x_axis_lab 
+SSQ_plot$Item <- rep(colnames(data.ssq),5)
+SSQ_plot$Loading <- as.vector(fa.ssq$Structure)
+SSQ_plot$Factors <- c(rep('Factor 1',12),
+                  rep('Factor 2',12),
+                  rep('Factor 3',12),
+                  rep('Factor 4',12),
+                  rep('Factor 5',12))
+tiff(filename = 'PCA_SSQ.tif',width = 1600, height = 700)
+ggplot(data = SSQ_plot,aes(x = Item, y = Loading, fill = Factors)) +
+  geom_bar(stat = 'identity', position = 'stack') + 
+  scale_fill_brewer(palette = 'Dark2') + 
+  labs(title='Factor loadings for SSQ-12 items',subtitle = 'Cumulative variance = 79%') + 
+  theme(axis.text=element_text(size=22),
+        axis.title = element_text(size=30),
+        title = element_text(size=27),
+        legend.text = element_text(size=27)) 
+                  
+dev.off()
+```"
+"1","null device 
+          1 
+"

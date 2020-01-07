@@ -1,0 +1,63 @@
+"0","```r
+library('caret')
+```"
+"1","Indlæ”¼ã¸¶ser kræ”¼ã¸¶vet pakke: lattice
+
+Vedhæ”¼ã¸¶fter pakke: ã¤¼ã¸±latticeã¤¼ã¸²
+
+Det fæ˜¼ã¸¸lgende objekt er maskeret fra ã¤¼ã¸±package:corrgramã¤¼ã¸²:
+
+    panel.fill
+
+
+Vedhæ”¼ã¸¶fter pakke: ã¤¼ã¸±caretã¤¼ã¸²
+
+Det fæ˜¼ã¸¸lgende objekt er maskeret fra ã¤¼ã¸±package:purrrã¤¼ã¸²:
+
+    lift
+"
+"0","```r
+library('psych')
+```"
+"1","pakke ã¤¼ã¸±psychã¤¼ã¸² blev bygget under R version 3.5.3
+Vedhæ”¼ã¸¶fter pakke: ã¤¼ã¸±psychã¤¼ã¸²
+
+De fæ˜¼ã¸¸lgende objekter er maskerede fra ã¤¼ã¸±package:ggplot2ã¤¼ã¸²:
+
+    %+%, alpha
+"
+"0","```r
+data.ssq <- tmp[,seq(22,33,1)]
+ssq.cor <- cor(data.ssq, use = 'complete.obs')
+#now the factor analysis - make them orthogonal first
+png('Scree.png',width = 1000, height = 700)
+nr.factors <- fa.parallel(ssq.cor, n.obs = 1700, fa = 'fa')
+```"
+"1","Parallel analysis suggests that the number of factors =  3  and the number of components =  NA 
+"
+"0","```r
+dev.off()
+```"
+"1","null device 
+          1 
+"
+"0","```r
+nr.factors
+```"
+"1","Call: fa.parallel(x = ssq.cor, n.obs = 1700, fa = \"fa\")
+Parallel analysis suggests that the number of factors =  3  and the number of components =  NA 
+
+ Eigen Values of 
+
+ eigen values of factors
+ [1]  6.67  0.86  0.26  0.03 -0.04 -0.08 -0.10 -0.13 -0.14 -0.17 -0.24 -0.26
+
+ eigen values of simulated factors
+ [1]  0.26  0.11  0.08  0.06  0.04  0.02  0.00 -0.02 -0.04 -0.06 -0.08 -0.11
+
+ eigen values of components 
+ [1] 7.10 1.27 0.76 0.51 0.45 0.42 0.40 0.30 0.24 0.22 0.19 0.13
+
+ eigen values of simulated components
+[1] NA
+"

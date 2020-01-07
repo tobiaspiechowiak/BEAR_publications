@@ -1,0 +1,10 @@
+"0","```r
+library('dplyr')
+library('corrplot')
+```"
+"1","pakke ‘corrplot’ blev bygget under R version 3.5.2corrplot 0.84 loaded
+"
+"0","```r
+new.cor <- cbind(SSQ.5,ioi.3) %>% cor(use = 'complete.obs')
+corrplot(new.cor, method = 'circle')
+```"

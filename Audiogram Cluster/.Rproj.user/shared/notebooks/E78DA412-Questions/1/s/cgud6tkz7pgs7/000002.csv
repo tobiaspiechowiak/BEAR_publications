@@ -1,0 +1,56 @@
+"0","```r
+library('rpart')
+```"
+"1","pakke ã¤¼ã¸±rpartã¤¼ã¸² blev bygget under R version 3.5.1
+"
+"0","```r
+library('partykit')
+```"
+"1","pakke ã¤¼ã¸±partykitã¤¼ã¸² blev bygget under R version 3.5.3Indlæ”¼ã¸¶ser kræ”¼ã¸¶vet pakke: libcoin
+pakke ã¤¼ã¸±libcoinã¤¼ã¸² blev bygget under R version 3.5.1
+Vedhæ”¼ã¸¶fter pakke: ã¤¼ã¸±partykitã¤¼ã¸²
+
+De fæ˜¼ã¸¸lgende objekter er maskerede fra ã¤¼ã¸±package:partyã¤¼ã¸²:
+
+    cforest, ctree, ctree_control, edge_simple, mob, mob_control, node_barplot, node_bivplot,
+    node_boxplot, node_inner, node_surv, node_terminal, varimp
+"
+"0","```r
+library('rpart.plot')
+```"
+"1","pakke ã¤¼ã¸±rpart.plotã¤¼ã¸² blev bygget under R version 3.5.1
+"
+"0","```r
+library('ggplot2')
+library('gridExtra')
+eq <- AudClass ~  sex + charl2_score + age 
+fit.rpart <- rpart(eq, data = tmp, method = 'class', parms = list(split = 'information'), control = rpart.control(cp = 0.003))
+png('Question 1a.png',width = 3000, height = 2000)
+plot(as.party(fit.rpart))
+dev.off()
+```"
+"1","null device 
+          1 
+"
+"0","```r
+male <- tmp[tmp$sex == 'Male',]
+female <- tmp[tmp$sex == 'Female',]
+gender <- c('male','female')
+workNoise <- c(length(male$noise_at_work == 'Yes'), length(female$noise_at_work == 'Yes'))
+workDuration <- c(mean(male$noise_employment_yrs_2[!(is.na(male$noise_employment_yrs_2))]), mean(female$noise_employment_yrs_2[!(is.na(female$noise_employment_yrs_2))]))
+plot.frame <- data.frame(gender, workNoise, workDuration)
+plt1 <- ggplot(plot.frame, aes( x = gender, y = workNoise, fill = gender)) + 
+  geom_bar(stat = 'identity', width = .9, show.legend = FALSE) + xlab('') + ylab('Noise during work (# Yes)') +
+  scale_y_continuous(limits = c(0, 1000)) + theme_grey(base_size = 20)
+plt2 <- ggplot(plot.frame, aes(x = gender, y = workDuration, fill = gender)) + 
+  geom_bar(stat = 'identity', width = .9, show.legend = FALSE) + xlab('') + ylab('Noise Duration (years)') +
+  scale_y_continuous(limits = c(0, 20)) + theme_grey(base_size = 20)
+png('Noise exposure.png',width = 1000, height = 600)
+```"
+"0","```r
+grid.arrange(plt1, plt2, ncol = 2)
+dev.off()
+```"
+"1","null device 
+          1 
+"

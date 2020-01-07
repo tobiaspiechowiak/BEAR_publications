@@ -1,0 +1,28 @@
+"0","```r
+#for IOI-HA
+library('RColorBrewer')
+IOI_plot <- data.frame(matrix(ncol = 3, nrow = 3 * 7))
+x <- c(\"Item\", \"Loading\", \"Factors\")
+colnames(IOI_plot) <- x
+x_axis_lab <- c('IOI-HA#1','IOI-HA#2','IOI-HA#3','IOI-HA#4','IOI-HA#5','IOI-HA#6','IOI-HA#7')
+colnames(data.ioi) <- x_axis_lab
+IOI_plot$Item <- rep(colnames(data.ioi),3)
+IOI_plot$Loading <- as.vector(fa.ioi$Structure)
+IOI_plot$Factors <- c(rep('Factor 1',7),
+                  rep('Factor 2',7),
+                  rep('Factor 3',7))
+         
+tiff(filename = 'PCA_IOI.tif',width = 1300, height = 700)
+ggplot(data = IOI_plot,aes(x = Item, y = Loading, fill = Factors)) +
+  geom_bar(stat = 'identity', position = 'stack') + 
+  scale_fill_brewer(palette = 'Dark2') + 
+  labs(title='Factor loadings for IOI-HA-7 items',subtitle = 'Cumulative variance = 70%') + 
+  theme(axis.text=element_text(size=27),
+        axis.title = element_text(size=30),
+        title = element_text(size=27),
+        legend.text = element_text(size=30)) 
+dev.off()
+```"
+"1","null device 
+          1 
+"

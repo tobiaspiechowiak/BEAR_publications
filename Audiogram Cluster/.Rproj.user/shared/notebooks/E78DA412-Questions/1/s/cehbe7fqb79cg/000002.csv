@@ -1,0 +1,45 @@
+"0","```r
+SSQ.12 <- data.ssq
+SSQ.5 <- data.ssq[, c(2,7,9,11,12)]
+#make average
+SSQ.12.mean <- rowMeans(SSQ.12)
+SSQ.5.mean <- rowMeans(SSQ.5)
+SSQ.plot <- data.frame(SSQ.12.mean, SSQ.5.mean)
+png('Scatter_SSQ.png', width = 900, height = 700)
+ggplot(data = SSQ.plot, aes(x = SSQ.12.mean, y = SSQ.5.mean)) + 
+  geom_point(color = 'blue', size = 2) + 
+  geom_smooth(method = lm, linetype = 'solid', color = 'red', fill = 'black', size = 1) + 
+  labs(x = 'SSQ 12', y = 'SSQ 5')  +
+  theme(axis.text = element_text(size = 20),
+        axis.title = element_text(size = 21)) + 
+  annotate(geom=\"text\", x=25, y=75, label=\"1.4 + 0.98 * SSQ 12\",color='red', size=10) 
+  
+dev.off()
+```"
+"1","null device 
+          1 
+"
+"0","```r
+fit.ssq <- lm(data = SSQ.plot, SSQ.5.mean ~ SSQ.12.mean)
+summary(fit.ssq)
+```"
+"1","
+Call:
+lm(formula = SSQ.5.mean ~ SSQ.12.mean, data = SSQ.plot)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-19.0548  -2.8199   0.1117   2.7643  20.0907 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 1.377067   0.554264   2.484   0.0131 *  
+SSQ.12.mean 0.985375   0.008471 116.324   <2e-16 ***
+---
+Signif. codes:  0 â€˜***â€™ 0.001 â€˜**â€™ 0.01 â€˜*â€™ 0.05 â€˜.â€™ 0.1 â€˜ â€™ 1
+
+Residual standard error: 5.137 on 965 degrees of freedom
+  (597 observations deleted due to missingness)
+Multiple R-squared:  0.9334,	Adjusted R-squared:  0.9334 
+F-statistic: 1.353e+04 on 1 and 965 DF,  p-value: < 2.2e-16
+"

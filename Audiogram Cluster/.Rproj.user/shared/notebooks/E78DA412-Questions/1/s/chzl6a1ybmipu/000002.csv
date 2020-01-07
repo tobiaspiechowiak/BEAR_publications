@@ -1,0 +1,36 @@
+"0","```r
+data.ioi <- tmp[, seq(83,89,1)]
+data.ioi <- sapply(data.ioi, FUN = as.numeric)
+ioi.cor <- cor(data.ioi, use = 'complete.obs')
+#now the factor analysis - make them orthogonal first
+png('Scree_IOI.png',width = 1000, height = 700)
+nr.factors <- fa.parallel(ioi.cor, n.obs = 1700, fa = 'fa')
+```"
+"1","Parallel analysis suggests that the number of factors =  2  and the number of components =  NA 
+"
+"0","```r
+dev.off()
+```"
+"1","null device 
+          1 
+"
+"0","```r
+nr.factors
+```"
+"1","Call: fa.parallel(x = ioi.cor, n.obs = 1700, fa = \"fa\")
+Parallel analysis suggests that the number of factors =  2  and the number of components =  NA 
+
+ Eigen Values of 
+
+ eigen values of factors
+[1]  2.84  0.71  0.01 -0.09 -0.12 -0.18 -0.33
+
+ eigen values of simulated factors
+[1]  0.33  0.07  0.04  0.02 -0.01 -0.04 -0.07
+
+ eigen values of components 
+[1] 3.36 1.39 0.68 0.48 0.43 0.38 0.27
+
+ eigen values of simulated components
+[1] NA
+"

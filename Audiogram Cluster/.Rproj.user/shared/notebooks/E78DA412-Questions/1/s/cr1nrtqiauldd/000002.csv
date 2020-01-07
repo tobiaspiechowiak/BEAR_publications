@@ -1,0 +1,51 @@
+"0","```r
+fa.ssq <- fa(ssq.cor, nfactors = 5, rotate = 'varimax', fm = 'pa',SMC = FALSE, n.obs = 1700)
+fa.ssq
+```"
+"1","Factor Analysis using method =  pa
+Call: fa(r = ssq.cor, nfactors = 5, n.obs = 1700, rotate = \"varimax\", 
+    SMC = FALSE, fm = \"pa\")
+Standardized loadings (pattern matrix) based upon correlation matrix
+                PA1  PA2  PA3  PA4  PA5   h2    u2 com
+ssq_speech_q1  0.72 0.29 0.15 0.20 0.11 0.68 0.319 1.6
+ssq_speech_q4  0.81 0.23 0.15 0.16 0.17 0.79 0.214 1.4
+ssq_speech_q10 0.78 0.30 0.15 0.17 0.06 0.75 0.254 1.5
+ssq_speech_q11 0.75 0.22 0.17 0.15 0.27 0.74 0.262 1.7
+ssq_speech_q12 0.67 0.29 0.15 0.15 0.22 0.63 0.374 1.8
+ssq_space_q6   0.31 0.80 0.14 0.12 0.14 0.78 0.218 1.5
+ssq_space_q9   0.32 0.85 0.14 0.11 0.20 0.90 0.102 1.5
+ssq_space_q13  0.26 0.82 0.17 0.13 0.21 0.82 0.176 1.5
+ssq_sound_q2   0.29 0.26 0.87 0.17 0.23 0.99 0.011 1.7
+ssq_sound_q7   0.25 0.42 0.24 0.14 0.50 0.56 0.438 3.1
+ssq_sound_q9   0.35 0.37 0.23 0.16 0.50 0.59 0.409 3.4
+ssq_sound_q14  0.43 0.22 0.18 0.81 0.17 0.96 0.042 1.9
+
+                       PA1  PA2  PA3  PA4  PA5
+SS loadings           3.52 2.81 1.08 0.92 0.85
+Proportion Var        0.29 0.23 0.09 0.08 0.07
+Cumulative Var        0.29 0.53 0.62 0.69 0.77
+Proportion Explained  0.38 0.31 0.12 0.10 0.09
+Cumulative Proportion 0.38 0.69 0.81 0.91 1.00
+
+Mean item complexity =  1.9
+Test of the hypothesis that 5 factors are sufficient.
+
+The degrees of freedom for the null model are  66  and the objective function was  9.17 with Chi Square of  15535.28
+The degrees of freedom for the model are 16  and the objective function was  0.09 
+
+The root mean square of the residuals (RMSR) is  0.01 
+The df corrected root mean square of the residuals is  0.02 
+
+The harmonic number of observations is  1700 with the empirical chi square  24.26  with prob <  0.084 
+The total number of observations was  1700  with Likelihood Chi Square =  148.55  with prob <  1.5e-23 
+
+Tucker Lewis Index of factoring reliability =  0.965
+RMSEA index =  0.07  and the 90 % confidence intervals are  0.06 0.08
+BIC =  29.53
+Fit based upon off diagonal values = 1
+Measures of factor score adequacy             
+                                                   PA1  PA2  PA3  PA4   PA5
+Correlation of (regression) scores with factors   0.93 0.94 0.98 0.95  0.67
+Multiple R square of scores with factors          0.86 0.89 0.96 0.90  0.44
+Minimum correlation of possible factor scores     0.71 0.78 0.92 0.81 -0.11
+"

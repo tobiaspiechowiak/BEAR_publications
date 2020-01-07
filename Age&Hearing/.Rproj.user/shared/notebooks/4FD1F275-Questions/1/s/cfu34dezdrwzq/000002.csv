@@ -1,0 +1,61 @@
+"0","```r
+ioi.7 <- data.ioi
+ioi.3 <- data.ioi[, c(1,2,5)]
+ioi.7.mean <- rowMeans(ioi.7) - 1 + rnorm(nrow(ioi.7),0,0.01)
+ioi.3.mean <- rowMeans(ioi.3) - 1 + rnorm(nrow(ioi.3),0,0.01)
+ioi.plot <- data.frame(ioi.3.mean, ioi.7.mean) 
+fit.ioi <- nls(ioi.3.mean ~ 4*(ioi.7.mean/4)^x, data = ioi.plot, start = list(x = 0))
+s_fit <- summary(fit.ioi)
+fun.3 <- function(x, y) 4*(x/4) ^ y
+fun.4 <- function(x) x
+png('Scatter_IOI.png',width = 900, height = 700)
+ggplot(data = ioi.plot, aes(x = ioi.7.mean, y = ioi.3.mean)) +
+  geom_point(color = 'blue', size = 2) +
+  stat_function(fun = fun.3, args = list(y = s_fit$coefficients[1]), color = 'red', size = 2) + xlim(0,4) + 
+    stat_function(fun=fun.4, color = 'black', size = 1) + xlim(0,4) +
+ # geom_smooth(method =  lm,linetype = 'solid', color = 'red', fill = 'black', size = 1) +
+  labs(x = 'IOI-HA-7', y = 'IOI-HA-3') +
+  annotate(geom=\"text\", x=1, y=3.7, label=TeX(\"IOI-HA-3 = $4 \\left( \\frac{IOI-HA-7}{4} \\right) ^{0.889}$\"),
+              color='red', size=10) + 
+  theme(axis.text = element_text(size = 20),
+        axis.title = element_text(size = 21)) +
+  labs(title = 'Mean IOI-HA-7 scores vs. mean IOI-HA-3 scores') +
+  theme(title = element_text(size=25),
+        axis.title = element_text(size=24),
+        axis.text = element_text(size=23))
+```"
+"1","Scale for 'x' is already present. Adding another scale for 'x', which
+will replace the existing scale.
+"
+"0","```r
+  
+  
+dev.off()
+```"
+"1","null device 
+          1 
+"
+"0","```r
+fit.ioi <- lm(data = ioi.plot, ioi.3.mean ~ ioi.7.mean)
+summary(fit.ioi)
+```"
+"1","
+Call:
+lm(formula = ioi.3.mean ~ ioi.7.mean, data = ioi.plot)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-1.47411 -0.17137  0.00853  0.17247  1.08926 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  0.20143    0.03431   5.871 5.37e-09 ***
+ioi.7.mean   0.96684    0.01111  86.989  < 2e-16 ***
+---
+Signif. codes:  0 â€˜***â€™ 0.001 â€˜**â€™ 0.01 â€˜*â€™ 0.05 â€˜.â€™ 0.1 â€˜ â€™ 1
+
+Residual standard error: 0.2976 on 1434 degrees of freedom
+  (128 observations deleted due to missingness)
+Multiple R-squared:  0.8407,	Adjusted R-squared:  0.8406 
+F-statistic:  7567 on 1 and 1434 DF,  p-value: < 2.2e-16
+"

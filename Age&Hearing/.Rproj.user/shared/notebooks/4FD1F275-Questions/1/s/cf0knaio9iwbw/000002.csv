@@ -1,0 +1,61 @@
+"0","```r
+source('setup.R')
+```"
+"1","pakke ‘reshape2’ blev bygget under R version 3.5.1pakke ‘corrgram’ blev bygget under R version 3.5.2pakke ‘party’ blev bygget under R version 3.5.1Indlæser krævet pakke: grid
+Indlæser krævet pakke: mvtnorm
+Indlæser krævet pakke: modeltools
+pakke ‘modeltools’ blev bygget under R version 3.5.1Indlæser krævet pakke: stats4
+Indlæser krævet pakke: strucchange
+pakke ‘strucchange’ blev bygget under R version 3.5.2Indlæser krævet pakke: zoo
+pakke ‘zoo’ blev bygget under R version 3.5.1
+Vedhæfter pakke: ‘zoo’
+
+De følgende objekter er maskerede fra ‘package:base’:
+
+    as.Date, as.Date.numeric
+
+Indlæser krævet pakke: sandwich
+pakke ‘sandwich’ blev bygget under R version 3.5.1pakke ‘ggmosaic’ blev bygget under R version 3.5.2Indlæser krævet pakke: ggplot2
+pakke ‘ggplot2’ blev bygget under R version 3.5.1pakke ‘gridExtra’ blev bygget under R version 3.5.1pakke ‘plotly’ blev bygget under R version 3.5.2
+Vedhæfter pakke: ‘plotly’
+
+Det følgende objekt er maskeret fra ‘package:ggplot2’:
+
+    last_plot
+
+Det følgende objekt er maskeret fra ‘package:stats’:
+
+    filter
+
+Det følgende objekt er maskeret fra ‘package:graphics’:
+
+    layout
+
+Indlæser krævet pakke: tidyverse
+pakke ‘tidyverse’ blev bygget under R version 3.5.2-- Attaching packages ----------------------------------- tidyverse 1.2.1 --
+v tibble  1.4.2     v purrr   0.2.5
+v tidyr   0.8.1     v dplyr   0.7.7
+v readr   1.1.1     v stringr 1.4.0
+v tibble  1.4.2     v forcats 0.3.0
+pakke ‘readr’ blev bygget under R version 3.5.1pakke ‘dplyr’ blev bygget under R version 3.5.1pakke ‘stringr’ blev bygget under R version 3.5.3pakke ‘forcats’ blev bygget under R version 3.5.1-- Conflicts -------------------------------------- tidyverse_conflicts() --
+x stringr::boundary() masks strucchange::boundary()
+x dplyr::combine()    masks gridExtra::combine()
+x dplyr::filter()     masks plotly::filter(), stats::filter()
+x dplyr::lag()        masks stats::lag()
+`summarise_each()` is deprecated.
+Use `summarise_all()`, `summarise_at()` or `summarise_if()` instead.
+To map `funs` over all variables, use `summarise_all()`
+Using Class, record_id as id variables
+"
+"0","```r
+tmp <- t3.data.15d %>% merge(t3.data.ssq,by = c('record_id','redcap_event_name')) %>%
+  merge(t3.data.thi, c('record_id','redcap_event_name')) %>% 
+  merge(df_fitting_rationale, c('record_id','redcap_event_name')) %>% merge(df_ioi, c('record_id','redcap_event_name'))
+tmp <- tmp %>% merge(df_tinnitus, c('record_id')) %>%
+merge(df_motivation, c('record_id')) %>%
+merge(df_ha_use, c('record_id')) %>% 
+merge(df_audiogram, c('record_id')) %>%
+merge(df_CCI, c('record_id'))
+```"
+"1","column names ã¤¼ã¸±redcap_event_name.xã¤¼ã¸², ã¤¼ã¸±redcap_event_name.yã¤¼ã¸² are duplicated in the resultcolumn names ã¤¼ã¸±redcap_event_name.xã¤¼ã¸², ã¤¼ã¸±redcap_event_name.yã¤¼ã¸² are duplicated in the resultcolumn names ã¤¼ã¸±redcap_event_name.xã¤¼ã¸², ã¤¼ã¸±redcap_event_name.yã¤¼ã¸² are duplicated in the result
+"

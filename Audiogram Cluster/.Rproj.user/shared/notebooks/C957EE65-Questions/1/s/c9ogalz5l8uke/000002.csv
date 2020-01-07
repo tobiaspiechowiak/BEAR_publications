@@ -1,0 +1,8 @@
+"0","```r
+png('Factor_plot.png', width = 1000, height = 1000)
+fa.diagram(fa.ssq, simple = FALSE)
+dev.off()
+```"
+"1","null device 
+          1 
+"

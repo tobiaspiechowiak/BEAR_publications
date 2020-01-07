@@ -1,0 +1,7 @@
+"0","```r
+ioi.7 <- data.ioi
+ioi.3 <- as.data.frame(data.ioi[, c(1,2,5)])
+ioi.7.mean <- rowMeans(ioi.7) - 1 + rnorm(nrow(ioi.plot),0,0.01)
+```"
+"1","Error in nrow(ioi.plot) : object 'ioi.plot' not found
+"

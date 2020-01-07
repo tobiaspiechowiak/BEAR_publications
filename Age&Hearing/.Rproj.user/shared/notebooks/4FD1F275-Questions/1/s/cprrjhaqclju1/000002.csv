@@ -1,0 +1,38 @@
+"0","```r
+library('latex2exp')
+SSQ.12 <- data.ssq
+SSQ.5 <- data.ssq[, c(2,7,9,11,12)]
+#make average
+SSQ.12.mean <- rowMeans(SSQ.12)
+SSQ.5.mean <- rowMeans(SSQ.5)
+SSQ.plot <- data.frame(SSQ.12.mean, SSQ.5.mean)
+# fit power function 
+fit.ssq <- nls(SSQ.5.mean ~ 100*(SSQ.12.mean/100)^x, data = SSQ.plot, start = list(x = 0))
+s_fit <- summary(fit.ssq)
+fun.1 <- function(x, y) 100*(x/100) ^ y
+fun.2 <- function(x) x
+png('Scatter_SSQ.png', width = 900, height = 700)
+ggplot(data = SSQ.plot, aes(x = SSQ.12.mean, y = SSQ.5.mean)) + 
+  geom_point(color = 'blue', size = 2) + 
+  stat_function(fun = fun.1, args = list(y = s_fit$coefficients[1]), color = 'red', size = 2) + xlim(0,100) + 
+  stat_function(fun = fun.2, color = 'black', size = 1) + xlim(0,100) + 
+  #geom_smooth(method = gam, linetype = 'solid', color = 'red', fill = 'black', size = 1, formular = SSQ.5.mean ~ 10*(SSQ.12.mean/10)^x) + 
+  labs(x = 'SSQ-12', y = 'SSQ-5')  +
+  theme(axis.text = element_text(size = 20),
+        axis.title = element_text(size = 21)) + 
+  annotate(geom=\"text\", x=25, y=75, label=TeX(\"SSQ-5 = $100 \\left( \\frac{SSQ-12}{100} \\right) ^{0.981}$\"),color='red', size=10) + 
+  labs(title = 'Mean SSQ-12 scores vs. mean SSQ-5 scores') +
+  theme(title = element_text(size=25),
+        axis.title = element_text(size=24),
+        axis.text = element_text(size=23))
+```"
+"1","Scale for 'x' is already present. Adding another scale for 'x', which
+will replace the existing scale.
+"
+"0","```r
+  
+dev.off()
+```"
+"1","null device 
+          1 
+"

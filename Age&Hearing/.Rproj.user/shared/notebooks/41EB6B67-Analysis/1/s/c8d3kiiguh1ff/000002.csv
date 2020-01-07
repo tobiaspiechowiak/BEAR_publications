@@ -1,0 +1,88 @@
+"0","library('dplyr')"
+"0","source('setup.R')"
+"2","pakke ‘reshape2’ blev bygget under R version 3.5.1"
+"2","pakke ‘corrgram’ blev bygget under R version 3.5.2"
+"2","pakke ‘party’ blev bygget under R version 3.5.1"
+"2","Indlæser krævet pakke: grid
+"
+"2","Indlæser krævet pakke: mvtnorm
+"
+"2","Indlæser krævet pakke: modeltools
+"
+"2","pakke ‘modeltools’ blev bygget under R version 3.5.1"
+"2","Indlæser krævet pakke: stats4
+"
+"2","Indlæser krævet pakke: strucchange
+"
+"2","pakke ‘strucchange’ blev bygget under R version 3.5.2"
+"2","Indlæser krævet pakke: zoo
+"
+"2","pakke ‘zoo’ blev bygget under R version 3.5.1"
+"2","
+Vedhæfter pakke: ‘zoo’
+
+"
+"2","De følgende objekter er maskerede fra ‘package:base’:
+
+    as.Date, as.Date.numeric
+
+"
+"2","Indlæser krævet pakke: sandwich
+"
+"2","pakke ‘sandwich’ blev bygget under R version 3.5.1"
+"2","pakke ‘ggmosaic’ blev bygget under R version 3.5.2"
+"2","pakke ‘plotly’ blev bygget under R version 3.5.2"
+"2","
+Vedhæfter pakke: ‘plotly’
+
+"
+"2","Det følgende objekt er maskeret fra ‘package:ggplot2’:
+
+    last_plot
+
+"
+"2","Det følgende objekt er maskeret fra ‘package:stats’:
+
+    filter
+
+"
+"2","Det følgende objekt er maskeret fra ‘package:graphics’:
+
+    layout
+
+"
+"2","Indlæser krævet pakke: tidyverse
+"
+"2","pakke ‘tidyverse’ blev bygget under R version 3.5.2"
+"2","-- Attaching packages ------------------------------------------------------------------------ tidyverse 1.2.1 --
+"
+"2","v tibble  1.4.2     v purrr   0.2.5
+v tidyr   0.8.1     v stringr 1.4.0
+v readr   1.1.1     v forcats 0.3.0
+"
+"2","pakke ‘readr’ blev bygget under R version 3.5.1"
+"2","pakke ‘stringr’ blev bygget under R version 3.5.3"
+"2","pakke ‘forcats’ blev bygget under R version 3.5.1"
+"2","-- Conflicts --------------------------------------------------------------------------- tidyverse_conflicts() --
+x stringr::boundary()  masks strucchange::boundary()
+x gridExtra::combine() masks dplyr::combine()
+x plotly::filter()     masks dplyr::filter(), stats::filter()
+x dplyr::lag()         masks stats::lag()
+"
+"2","`summarise_each()` is deprecated.
+Use `summarise_all()`, `summarise_at()` or `summarise_if()` instead.
+To map `funs` over all variables, use `summarise_all()`
+"
+"2","Using Class, record_id as id variables
+"
+"0","tmp <- t3.data.15d %>% merge(t3.data.ssq,by = c('record_id','redcap_event_name')) %>%"
+"0","  merge(t3.data.thi, c('record_id','redcap_event_name')) %>% "
+"0","  merge(df_fitting_rationale, c('record_id','redcap_event_name')) %>% merge(df_ioi, c('record_id','redcap_event_name'))"
+"0","tmp <- tmp %>% merge(df_tinnitus, c('record_id')) %>%"
+"0","merge(df_motivation, c('record_id')) %>%"
+"0","merge(df_ha_use, c('record_id')) %>% "
+"0","merge(df_audiogram, c('record_id')) %>%"
+"0","merge(df_CCI, c('record_id'))"
+"2","column names ‘redcap_event_name.x’, ‘redcap_event_name.y’ are duplicated in the result"
+"2","column names ‘redcap_event_name.x’, ‘redcap_event_name.y’ are duplicated in the result"
+"2","column names ‘redcap_event_name.x’, ‘redcap_event_name.y’ are duplicated in the result"
