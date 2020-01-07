@@ -212,7 +212,7 @@ nr.factors
 Plot the IOI scree plot nicer:
 
 ```{r}
-fa_val <- data.frame(1:length(nr.factors_IOI$fa.values),nr.factors_IOI$fa.values + 0.05)
+fa_val <- data.frame(1:length(nr.factors_IOI$fa.values),nr.factors_IOI$fa.values)
 
 names(fa_val) <- c('Factor_number','Eigenvalue')
 
@@ -392,7 +392,7 @@ dev.off()
 ```
 
 
-Syn og hørelsen
+Syn og h?relsen
 
 ```{r}
 
