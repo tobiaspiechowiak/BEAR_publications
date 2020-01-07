@@ -1,0 +1,302 @@
+---
+title: "Life Satisfaction"
+output: html_notebook
+---
+
+```{r}
+ggplot(df_ioi_follow, aes(x = ioi_ha_7)) + geom_bar(fill=col2[1], color="orange") + 
+  ggtitle("How much has your current HA increased your life satisfaction?") + 
+  geom_text(stat='count', aes(label=..count..), vjust=-1) + ylim(0,700) + theme_minimal() + 
+  scale_x_discrete(labels=ioi_label_7) + xlab("")
+```
+
+
+# Some illustrations
+```{r}
+ioi_use <- merge(df_ioi_follow, df_use_group[,c(1,7,11)], by='record_id')
+
+ggplot(ioi_use, aes(x=as.numeric(ioi_ha_7), y = ha_usetime_hours_per_day)) + 
+  geom_boxplot(aes(x=ioi_ha_7))+ geom_smooth(method = "lm") + geom_smooth(aes(x=ioi_ha_2), method = "lm", color="red")
+
+
+ggplot(ioi_use %>% filter(!is.na(ioi_ha_7)), aes(x=ioi_ha_7, ha_usetime_hours_per_day)) + geom_boxplot()
+
+ggplot(ioi_use %>% filter(!is.na(ioi_ha_7))) + geom_bar(aes(x=ioi_ha_7, fill=ioi_ha_2), position = 'fill') +
+  scale_x_discrete(labels=ioi_label_7) + xlab("") + theme_minimal()
+
+t3.data.ssq.diff
+
+ioi_use %>% filter(ioi_ha_7 == '4' & ioi_ha_4 == '0')
+
+```
+
+# Correlations
+```{r}
+ioi_use_diff.ssq <- merge(df_ssq_diff_group[,c(1,3:14)], ioi_use, by="record_id")
+ioi_use_follow.ssq <- merge(df_ssq_follow[,c(1,3:14)], ioi_use, by="record_id")
+
+cor_follow <- ioi_use_follow.ssq[c(2:13,21)]
+cor_diff <- ioi_use_diff.ssq[c(2:13,21)]
+
+cor_follow$ioi_ha_7 <- as.numeric(cor_follow$ioi_ha_7)
+cor_diff$ioi_ha_7 <- as.numeric(cor_diff$ioi_ha_7)
+
+#cor(na.omit(cor_diff), method = c("pearson"))
+#cor(na.omit(cor_follow), method = c("pearson"))
+
+```
+
+# Trees + ML
+```{r}
+
+requireLibrary('rpart')
+requireLibrary('partykit')
+requireLibrary('rpart.plot')
+requireLibrary('randomForest')
+
+
+eq <- as.numeric(ioi_ha_7) ~ ssq_speech_q1 + ssq_speech_q4 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 + ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14
+
+eq_ioi <- as.numeric(ioi_ha_7) ~ as.numeric(ioi_ha_1) + as.numeric(ioi_ha_2) +as.numeric(ioi_ha_3) +as.numeric(ioi_ha_4) + 
+  as.numeric(ioi_ha_5) + as.numeric(ioi_ha_6)  
+
+eq_ioi_2 <- ioi_ha_7 ~ ioi_ha_1 + ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6  
+#ssq
+
+fit.forest <- randomForest(eq,data = na.omit(cor_follow))
+fit1.rpart <- rpart(eq, data = ioi_use_clust,method = "anova", maxdepth = 15, parms = list(split = "information"))
+fit2.rpart <- rpart(eq, data = ioi_use_follow.ssq, method = "anova", maxdepth = 15, parms = list(split = "information"))
+
+# ioi
+fit3.rpart <- rpart(eq_ioi, data = ioi_use_follow.ssq, method = "anova", maxdepth = 15, parms = list(split = "information"))
+fit3.forest <- randomForest(eq_ioi_2,data = na.omit(ioi_use))
+fit4.rpart <- rpart(eq_ioi_2, data = ioi_use_follow.ssq, method = "class", parms = list(split = "information"))
+
+#print ssq
+randomForest::importance(fit.forest)
+print(fit.forest)
+
+# print ioi
+randomForest::importance(fit3.forest)
+
+
+# plot ssq
+rpart.plot(fit1.rpart)
+rpart.plot(fit2.rpart)
+
+# plot ioi
+rpart.plot(fit3.rpart)
+rpart.plot(fit4.rpart, extra = 101, box.palette = 'RdBu', type = 4, branch.lty = 3)
+
+```
+
+#Linear regression
+```{r}
+ioi_use <- ioi_use %>% filter(ha_usetime_hours_per_day <= 16)
+
+ggplot(ioi_use, aes(y=as.numeric(ioi_ha_7),x = ha_usetime_hours_per_day)) + 
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_2) <= 1), color='red', size=1) + 
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_2) > 1 & as.numeric(ioi_ha_2) <= 3), color='yellow') +
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_2) > 3), color='green') + theme_minimal() + 
+  xlab("Use time ") + ylab("Life satisfaction")
+
+ggplot(ioi_use) + geom_jitter(aes(x=ioi_ha_2, y = ioi_ha_7))
+
+ggplot(ioi_use, aes(y=as.numeric(ioi_ha_7),x = ha_usetime_hours_per_day)) + 
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_4) <= 1), color='red', size=1) + 
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_4) > 1 & as.numeric(ioi_ha_2) <= 3), color='yellow') +
+  geom_smooth(method = lm, data=ioi_use %>% filter(as.numeric(ioi_ha_4) > 3), color='green') + theme_minimal() + 
+  geom_bin2d(data = ioi_use %>% filter(as.numeric(ioi_ha_4) <= 1)) +
+  xlab("Use time ") + ylab("Life satisfaction")                                      
+
+ggplot(ioi_use %>% filter(ha_usetime_hours_per_day <= 16), aes(y=as.numeric(ioi_ha_3),x = ha_usetime_hours_per_day)) + 
+  geom_smooth(method = 'loess', color='red', size=1)
+
+# kør Clustering
+ioi_use_clust <- merge(ioi_use, t3.data.ssq.diff, by=c('record_id'))
+levels(ioi_use_clust$Cluster) <- c("Low benefit", "Moderate benefit","High benefit")
+
+# cluster
+ggplot(ioi_use_clust, aes(y=as.numeric(ioi_ha_7),x = ha_usetime_hours_per_day)) + 
+  geom_smooth(method = lm, size=1, aes(color=Cluster)) + 
+  xlab("Use time (hours/day)") + ylab("Life satisfaction") + theme_minimal() + ylim(1,5) + ggtitle("Use-time & life satisfaction")
+
+# ioi
+ggplot(ioi_use_clust, aes(y=as.numeric(ioi_ha_7),x = ha_usetime_hours_per_day)) + 
+  geom_smooth(method = lm, aes(color=ioi_ha_2)) + ggtitle("IoI Benefit & Use-time") + 
+  xlab("Use time (hours/day)") + ylab("Life satisfaction") + theme_minimal() + ylim(1,5)
+  #geom_smooth(method='loess',aes(y = as.numeric(ioi_ha_7), color=ioi_ha_4))
+
+
+# + geom_jitter(aes(color=Cluster), alpha=.1)
+ggplot(ioi_use_clust) + geom_boxplot(aes(x=Cluster, y=ha_usetime_hours_per_day))
+
+dat1 <- ioi_use_clust %>% filter(Cluster == "Moderate benefit")
+fit <- lm(ha_usetime_hours_per_day ~ as.numeric(ioi_ha_7), dat1)
+cor(ioi_use_clust$ha_usetime_hours_per_day, as.numeric(ioi_use_clust$ioi_ha_7))
+
+blalala  <- ioi_use_diff.ssq %>% merge(ssq_diff[c(1, 16:18)], by="record_id")
+
+
+
+melted_ioi_ssq_diff <- melt(blalala[,c(2:13,16 ,21, 25:27)], id.vars = c("ioi_ha_7", "ioi_ha_2")) # all
+melted_ioi_ssq_diff2 <- melt(blalala[,c(16 ,21, 25:27)], id.vars = c("ioi_ha_7", "ioi_ha_2")) # mean
+melted_ioi_ssq_diff3 <- melt(blalala[,c(2:6,16 ,21)], id.vars = c("ioi_ha_7", "ioi_ha_2")) 
+
+ggplot(melted_ioi_ssq_diff2) + geom_smooth(aes(x=value, y=as.numeric(ioi_ha_2), color=variable), method = lm, se=F) + 
+  theme_light() + ylab("Spcefic scenario improvement") +  xlab("SSQ difference (baseline X followup)") + ylim(1,5)
+
+ggplot(melted_ioi_ssq_diff3) + geom_smooth(aes(x=value, y=as.numeric(ioi_ha_2), color=variable), method = lm, se=F) + 
+  theme_light() + ylab("Spcefic scenario improvement") +  xlab("SSQ difference (baseline X followup)") + ylim(1,5)
+
+
+ggplot(melted_ioi_ssq_diff2) + geom_smooth(aes(x=value, y=as.numeric(ioi_ha_7), color=variable), method = lm, se=F) + 
+  theme_light() + ylab("Life satisfaction improvement") + xlab("SSQ difference (baseline X followup)") + ylim(1,5)
+
+ioi_use_clust %>% filter(ioi_ha_7 == 4)
+summary(fit)
+
+```
+
+Drawer users
+```{r}
+
+levels(ioi_use_clust$ioi_ha_7) <- ioi_label_7
+
+grid.arrange(
+  
+  ggplot(ioi_use_clust %>% filter(!is.na(ioi_ha_7))) + geom_bar(aes(x=IsT1DrawerUser, fill=ioi_ha_7), position = 'dodge', color="black")+
+    theme_minimal() + ggtitle("Distribution") + theme(legend.position = "none") + xlab("Drawer user") + scale_x_discrete(labels= c("No", "Yes")) + scale_fill_brewer(palette = "RdYlBu"),
+  
+  ggplot(ioi_use_clust %>% filter(!is.na(ioi_ha_7))) + geom_bar(aes(x=IsT1DrawerUser, fill=ioi_ha_7), position = 'fill', color="black")+
+    theme_minimal()  + ggtitle("Relative distribution") + ylab("") + xlab("Drawer user")+  scale_x_discrete(labels= c("No", "Yes")) +
+    scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu"),
+
+  
+  ncol=2
+)
+
+ggplot(ioi_use_clust %>% filter(!is.na(ioi_ha_7))) + geom_bar(aes(x=IsT1DrawerUser, fill=ioi_ha_7), position = 'fill')
+ggplot(ioi_use_clust %>% filter(!is.na(ioi_ha_7))) + geom_bar(aes(x=IsT1DrawerUser, fill=ioi_ha_7), position = 'dodge')
+
+
+#ioi_use_clust$IsT1DrawerUser <- as.factor(ioi_use_clust$IsT1DrawerUser)
+
+
+ggplot(ioi_use_clust %>% filter(!is.na(ioi_ha_7)), aes(x=as.numeric(ioi_ha_2), y=as.numeric(ioi_ha_7))) + 
+  geom_smooth(method = lm, aes(color=IsT1DrawerUser))
+```
+
+``` {r, fig.width = 12}
+melted_15d <- melt(df_15d[1:17], id.vars = c('record_id', 'redcap_event_name'))
+
+grid.arrange(
+  ggplot(melted_15d %>% filter(redcap_event_name == 'baseline_arm_1') %>% na.omit) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value), color="black") + scale_x_discrete(labels = d_label) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1) + theme_minimal() + theme(legend.position = "none") + ggtitle("Baseline"),
+
+ggplot(melted_15d %>% na.omit()) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value), color="black")  + scale_x_discrete(labels = d_label) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1) + theme_minimal() + theme(legend.position = "none") + ggtitle("Follow-up"), 
+
+
+ncol=1
+)
+
+table(melted_15d[c(3:4,2)] )
+
+ggplot(melted_15d %>% filter(redcap_event_name == 'baseline_arm_1') %>% na.omit) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value), color="black") + coord_flip() + scale_x_discrete(labels = d_label) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1) + theme_minimal() + theme(legend.position = "none")
+
+ggplot(melted_15d %>% na.omit()) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value)) + coord_flip() + scale_x_discrete(labels = d_label) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1) + theme_minimal() + theme(legend.position = "none") + facet_wrap(facets = 'redcap_event_name')
+```
+```{r}
+melted_15d <- melt(df_15d[,c(1:3,5,7,11:16)], id.vars = c('record_id', 'redcap_event_name'))
+d_label_2 <- c('Move', 'Hear', 'Sleep', 'Activity', 'Mental', 'Unpleasant', 'Depression', 'Stress', 'Power')
+
+
+grid.arrange(
+  ggplot(melted_15d %>% filter(redcap_event_name == 'baseline_arm_1') %>% na.omit) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value),position = 'fill' ,color="black") + scale_x_discrete(labels = d_label_2) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1, labels= c("Best","","","","Worst")) + theme_minimal() + ggtitle("Baseline"),
+
+ggplot(melted_15d %>% filter(redcap_event_name == 'besoeg2_arm_1') %>% na.omit) + 
+  #geom_boxplot(aes(x=variable, y=value)) + coord_flip()
+  geom_bar(aes(x=variable, fill=value),position = 'fill' ,color="black")  + scale_x_discrete(labels=d_label_2) + ylab("") + xlab("") + 
+  scale_fill_brewer("Life satisfaction \n (change since HA)",palette = "RdYlBu", direction = -1, labels= c("Best","","","","Worst")) + theme_minimal() + ggtitle("Follow-up"), 
+
+ncol=1
+)
+
+#Those who improved hearing have also improved what?
+merged_15d_hear <- merge(df_15d_base, df_15d_follow, by="record_id")
+pos_15d_hear <- filter(merged_15d_hear, as.numeric(fifteen_d_3_hear.y)-as.numeric(fifteen_d_3_hear.x) < 0)
+
+pos_15d_hear[,c(3:17,20:34)] <- lapply(pos_15d_hear[,c(3:17,20:34)], as.numeric)
+diff_15d <- pos_15d_hear[,c(3,5,7,11:16)] - pos_15d_hear[,c(20,22,24,28:33)]
+diff_15d$record_id <- pos_15d_hear$record_id
+
+labels_15d_diff = c("Move","Hear","Sleep","Activity","Mental","Unpleasant","Depression","Stress","Power","record_id")
+colnames(diff_15d) <- labels_15d_diff
+
+melted_diff_15d <- melt(diff_15d[,c(1:10)], id.vars = c("record_id","Hear"))
+
+ggplot(diff_15d, aes(x=Hear)) + geom_bar()# + geom_text(stat="count", labels = ..count..)
+
+ggplot(melted_diff_15d, aes(x=variable,y=value, group=factor(Hear), color=factor(Hear))) +  stat_summary(fun.y= mean, geom="line", size=1)
+
+ggplot(melted_diff_15d, aes(x=variable,y=value, group=1)) + geom_count(aes(color = ..n.., size = ..n..)) +
+    guides(color = 'legend') + scale_size_area(max_size = 15) + ylab("Difference") + xlab("Domain") + ggtitle("Domain difference of those with improved 15D hear") + theme_classic() # +stat_summary(fun.y= mean, geom="line", size=1, color= "blue")
+
+#Extra der kun kiggede på dem med +2 difference i 15D Hear
+ggplot(filter(melted_diff_15d, Hear > 0), aes(x=variable, y=value, group=1)) + geom_count(aes(color = ..n.., size = ..n..)) +
+    guides(color = 'legend') + scale_size_area(max_size = 15) + ylab("Difference") + xlab("Domain") + ggtitle("Domain difference of those with improved 15D hear") + theme_classic()
+
+
+
+```
+
+
+```{r}
+diff_15d
+
+use15d_lm <- lm(ha_usetime_hours_per_day ~ .-record_id, data = merge(diff_15d, df_ha_use[,c("record_id","ha_usetime_hours_per_day")], by="record_id"))
+
+plot(use15d_lm)
+summary(use15d_lm)
+```
+
+
+```{r}
+
+jd <- df_ha_use %>% select(ha_use_time, ha_usetime_hours_per_day) %>% na.omit
+cor(jd$ha_usetime_hours_per_day, jd$ha_use_time)
+cor.test(jd$ha_usetime_hours_per_day, jd$ha_use_time)
+ggplot(jd, aes(y=ha_usetime_hours_per_day, x=ha_use_time)) + geom_bin2d(bins=24) + geom_smooth()
+```
+
+
+
+```{r}
+complex <- (select(t3.data.ssq.diff, starts_with("ssq_"),-ends_with("_mean")))[,c(1:5)]
+non_complex <- (select(t3.data.ssq.diff, starts_with("ssq_"),-ends_with("_mean")))[,c(6:12)]
+t.test(complex,non_complex,alternative="less", var.equal =F)
+```
+
+```{r}
+var(complex)
+var(non_complex)
+```
+
+
+
+  
+

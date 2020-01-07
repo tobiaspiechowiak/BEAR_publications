@@ -1,0 +1,349 @@
+---
+title: "Supervised"
+output: html_notebook
+---
+```{r}
+library(rpart)
+```
+
+# Testing
+
+```{r}
+my.ctree <- function(formula, data, seed=1234){
+  set.seed(seed)
+  ind <- sample(2, nrow(data), replace = TRUE, prob=c(0.7, 0.3))
+  train.data <- data[ind == 1, ]
+  tree <- ctree(formula, data = train.data)
+  plot(tree)
+  return(tree)
+}
+```
+
+```{r}
+
+
+form_disp_ssq <- use_group ~ 
+  ssq_sppech_q1 +
+  ssq_speech_q4 +
+  ssq_speech_q10 +
+  ssq_speech_q11 +
+  ssq_speech_q12 +
+  ssq_speech_q14 +
+  ssq_space_q6 +
+  ssq_space_q9 +
+  ssq_space_q13 +
+  ssq_sound_q2 +
+  ssq_sound_q7 +
+  ssq_sound_q9 +
+  ssq_sound_q14 +
+  ssq_sound_q15 +
+  ssq_sound_q16 +
+  ssq_sound_q17 +
+  ssq_sound_q18
+
+
+
+data <- merge(df_use_group, df_ssq, by=c('record_id', "redcap_event_name")) %>% filter(redcap_event_name == "baseline_arm_1")
+
+ok <- ha_usetime_hours_per_day ~ ssq_sound_mean + ssq_space_mean + ssq_sound_mean
+disp_tree <- my.ctree(ok, data=data)
+
+tree.rpart <- rpart(ok, data=data)
+
+{plot(tree.rpart, uniform=TRUE);text(tree.rpart)}
+#table(predict(disp_tree), disp_tree$)
+
+
+
+
+
+```
+
+```{r}
+data <- df_ssq_base
+melty_speech <- melt(merge(data[,c(1,2,3:8)], df_use_group[,c(1,2,11)], by=c('record_id','redcap_event_name')))
+melty_space <- melt(merge(data[,c(1,2,9:11)], df_use_group[,c(1,2,11)], by=c('record_id','redcap_event_name')))
+melty_sound <- melt(merge(data[,c(1,2,12:19)], df_use_group[,c(1,2,11)], by=c('record_id','redcap_event_name')))
+ggplot(melty_speech) + geom_boxplot(mapping = aes(x=variable, y=value, color=use_group)) + coord_flip()
+ggplot(melty_space) + geom_boxplot(mapping = aes(x=variable, y=value, color=use_group)) + coord_flip()
+ggplot(melty_sound) + geom_boxplot(mapping = aes(x=variable, y=value, color=use_group)) + coord_flip()
+```
+
+
+
+#### Can we find anything on the subjects that do not have a second meeting?
+```{r}
+
+
+#data <- merge(df_ssq, filter(count(df_ssq, record_id), n==1), by='record_id')[,1:20]
+summary(is.na(df_time_between$visit_date_2))
+data
+melty_speech <- melt(merge(data[,c(1,2,3:8)], df_use_group[,c(1,2,11)], by=c('record_id','redcap_event_name')))
+melty_speech
+df_use_group[,c(1,2,11)]
+data[,c(1,2,3:8)]
+```
+No, there is no overlap
+
+
+## Audiogram classification
+Is the ctree able to find the same classes as the source? We test this. Answer is yes.
+```{r}
+
+set.seed(1234)
+ind <- sample(2, nrow(df_audiogram_left), replace = TRUE, prob=c(0.7, 0.3))
+train.data <- df_audiogram_left[ind == 1, ]
+
+form_audiogram <- Class ~ AC250 + AC500 + AC1k + AC2k + AC4k + AC6k
+
+tree <- ctree(form_audiogram, data = train.data)
+table(predict(tree), train.data$Class)
+```
+
+
+
+## Type of hearing aid
+
+
+
+```{r}
+
+aid <- df_fitting_rationale
+aid$ha_type <- factor(aid$ha_type, levels=c(1,2,3,4,5,6), labels = c("CIC","ITC/ITE","BTE RITE","BTE Tyndslange","BTE m/ prop","BTE (POWER!)"))
+aid <- filter(aid, !is.na(ha_type))
+
+aud <- df_audiogram_right
+aud$record_id <- aud$ID
+aud$ID <- NULL
+
+aid_aud <- merge(aid, aud, by=c('record_id'))
+
+form_audiogram <- ha_type ~ Class #AC250 + AC500 + AC1k + AC2k + AC4k + AC6k
+
+tree <- my.ctree(formula = ha_type ~ Class, data = aid_aud)
+
+
+plot(tree, terminal_panel = node_barplot)
+
+```
+
+```{r}
+test_tree <- my.ctree(formula = ioi_ha_1 ~ Class, data = merge(df_ioi, aud, by = "record_id"))
+plot(test_tree)
+```
+
+## Use time / audiogram
+```{r}
+
+use <- df_use_group
+aud_use <- merge(aud, use, by='record_id')
+
+set.seed(1234)
+ind <- sample(2, nrow(aud_use), replace = TRUE, prob=c(0.7, 0.3))
+train.data <- aud_use[ind == 1, ]
+
+form_audiogram <- ha_usetime_hours_per_day ~ Class
+#form_audiogram <- "nej"
+tree <- ctree(form_audiogram, data = train.data)
+
+?ctree_control
+# table(predict(tree), train.data$use_group)
+summary(tree)
+plot(tree)
+#text(tree, use.n = TRUE, all = TRUE, cex=0.8)
+
+
+
+```
+
+
+# Pricipal component analysis on audiogram data to determine class
+```{r}
+aud.pca <- aud[,c(3:8)]
+aud.pca <- prcomp(aud.pca, center = TRUE,
+                  scale. = TRUE)
+
+aud.dst <- data.frame(aud.pca$x)
+aud.dst$record_id <- aud$record_id
+
+use <- df_use_group
+aud_use <- merge(aud.dst, aud, by='record_id')
+aud_use <- merge(aud_use, use, by='record_id')
+
+library(ISLR)
+require(tree)
+
+ctree.aud_use <- ctree(Class ~ PC1+PC2+PC3+PC4+PC5+PC6, data = aud_use)
+tree.aud_use <- tree(Class ~ PC1+PC2+PC3+PC4+PC5+PC6, data = aud_use)
+
+plot(ctree.aud_use)
+{
+plot(tree.aud_use)
+text(tree.aud_use)
+}
+```
+
+# Tinnitus and SSQ
+```{r}
+d1 <- df_thi_baseline
+d2 <- filter(df_ssq, redcap_event_name=="baseline_arm_1")
+```
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+
+# Linear Regression
+
+Our approach is as follows:
+-Collect as many variables as possible, merging on the record_id column.
+-Create a linear model from all the variables.
+-Find the variable with the highest -- value, and remove it from the model.
+-Repeat until no varaibles remain with a -- value higher than --.
+
+*Info*
+T-value: If the t-value is close to 0, the vaible is not significant. The higher the value the more significant.
+
+
+
+Vi samler først og fremmest alle variabler i en tabel, og udfører linear regression ud fra use_time_per_day.
+```{r}
+df_15d_base <- read.csv(paste(datafolder,"15D-baseline.csv",sep="/")) #10/19
+df_ioi <- read.csv(paste(datafolder, "IOI-HA.csv", sep = "/")) #6/19
+
+
+
+everything <- df_ssq[,c(1,2,21:23)] %>%
+  merge(df_ha_use[,c(1:4, 7:9)], by=c("record_id", "redcap_event_name")) %>%
+  merge(df_15d_base[,c(1:17)], by=c("record_id", "redcap_event_name")) %>%
+  merge(df_motivation[,c(1,2,5,6)], by=c("record_id", "redcap_event_name")) %>%
+  merge(df_tinnitus[,c(1,2,5)], by=c("record_id", "redcap_event_name")) %>%
+  merge(df_audiogram[,c(10,12,13)], by=c("record_id")) %>%
+  #merge(df_ioi[,c(1,3:9)], by=c("record_id")) %>% # excluding ioi_ha, as it directly answers the dependant (does that mean ioi as a whole has to be dropped?)
+  merge(df_fitting_rationale_grouped[,c(1,10,11)], by=c("record_id")) %>%
+  filter(redcap_event_name == "baseline_arm_1")
+
+#everything$redcap_event_name.x <- NULL
+#everything$redcap_event_name.y <- NULL
+#everything$redcap_event_name <- NULL
+#everything$ha_manufactor.x <- NULL
+#everything$ha_use_time <- NULL
+#everything$d_complete <- NULL
+#everything$own_ha <- NULL
+
+#everything$ha_model6 <- NULL
+#everything$ha_type_mm_complete <- NULL
+
+
+ind <- sample(2, nrow(everything), replace = TRUE, prob=c(0.7, 0.3))
+everything.train <- everything[ind == 1, ]
+everything.test <- everything[ind == 2, ]
+
+```
+
+We attempt to find the linear model that is best able to explain the usetime in hours per day, to do this we make use of the leaps package, which test all combinations of variables and returns the top best fitting models.
+
+The result we find is multiple models, sorted by their R^2 values. The plot shows the R^2 value on the left, and the varaibles used on the bottom. (R^2 explains the amount of variance in the data that can be explained by the model, the closer to 1 the more variance is explained).
+
+```{r}
+library(leaps)
+  leaps<-regsubsets(ha_usetime_hours_per_day ~ .-record_id-redcap_event_name, data = everything.train, nbest=5, really.big = TRUE)
+  # view results
+  plot(leaps, scale="r2")
+```
+On this plot, we see that the highest R^2 is 0.092, which means that up to 9% percent of the variance can be explained by the model. If we include the IOI, the highest R^2 is 0.29, though as the first question of the ioi is "How much do you use your hearing aid per day", it's natural to exclude it because it answers the question directly. Furthermore the ioi in its entirety is performed AFTER the initial fitting, it does not work for prediction, as it is collected too late in the process.
+
+The most significant variables seems to be: 
+
+- fifteen_d_10_mental
+- fifteen_d_13_stress
+- motivation_line_2_ver2
+- ClassN2
+- ClassN7
+- ha_typeBTE(tyndslange)
+- and three of the HA manufactures *(at the time of wrting **15/02/19** we dont know which, as the data is not correctly specified in our documentation; the company names as they appear are incorrect)*
+
+Lets take a closer look at the details
+
+```{r}
+  stats <- summary(leaps)
+  ggplot(data.frame(R2=stats$adjr2, model=c(1:45)), aes(y=R2, x=model)) +
+    geom_line() + geom_label(aes(label=model), fill="#e1a1a1")
+```
+From this, we see that the model with the highest R² is number 41. Lets take a closer look at it. (Also there seems to be a pattern of groups of five, with the groups R² being in ascending order, but the members of the group being in descending order. Odd.)
+
+```{r}
+coef(leaps, 41) # How do we extract this model though??
+
+model1 <- lm(ha_usetime_hours_per_day ~ fifteen_d_1_move + fifteen_d_12_depression + fifteen_d_15_sex + tinnitus + Class + ha_manufactor + ha_type, everything.train)
+
+summary(model1)
+```
+
+
+```{r}
+model1 <- lm(ha_usetime_hours_per_day ~ fifteen_d_10_mental + fifteen_d_13_stress + motivation_line_2_ver2 + Class + ha_type + ha_manufactor, data = everything.train)
+summary(model1)
+plot(model1)
+
+predictions <- data.frame(
+  Predicted = predict(model1, newdata = everything.test),
+  Actual = everything.test$ha_usetime_hours_per_day
+)
+
+plot(predictions)
+```
+
+```{r}
+model2 <- lm(ha_usetime_hours_per_day ~ fifteen_d_10_mental + fifteen_d_13_stress + Class + ha_type + ha_manufactor, data = everything.train)
+summary(model1)
+plot(model1)
+
+predictions <- data.frame(
+  Predicted = predict(model1, newdata = everything.test),
+  Actual = everything.test$ha_usetime_hours_per_day
+)
+
+plot(predictions)
+```
+
+## PCA ALL THE THINGS
+
+```{r}
+
+subset_colclasses <- function(DF, colclasses="numeric") {
+  DF[,sapply(DF, function(vec, test) class(vec) %in% test, test=colclasses)]
+}
+all.nums <- everything %>% subset_colclasses(c("numeric", "integer")) %>% na.omit
+all.pca <- all.nums
+all.pca <- prcomp(all.pca, center = TRUE,
+                  scale. = TRUE)
+
+aud.dst <- data.frame(all.pca$x)
+aud.dst$usetime <- all.nums$ha_usetime_hours_per_day
+
+library(ISLR)
+require(tree)
+
+ctree.aud.dst <- ctree(usetime ~ ., data = aud.dst)
+tree.aud.dst <- tree(usetime ~ .-usetime, data = aud.dst)
+
+plot(ctree.aud.dst)
+{
+plot(tree.aud.dst)
+text(tree.aud.dst)
+}
+```
+
+
+
+
+

@@ -1,0 +1,244 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+• PCA looks to find a low-dimensional representation of the observations
+that explain a good fraction of the variance;
+• Clustering looks to find homogeneous subgroups among the observations.
+
+K-means clustering is a simple and elegant approach for partitioning a data set into K distinct, non-overlapping clusters. To perform K-means clustering, we must first specify the desired number of clusters K; then the K-means algorithm will assign each observation to exactly one of the K clusters. Figure 10.5 shows the results obtained from performing K-means clustering on a simulated example consisting of 150 observations in two dimensions, using three different values of K.
+
+- Hard clustering: in hard clustering, each data object or point either belongs to a cluster completely or not. For example in the Uber dataset, each location belongs to either one borough or the other.
+- Soft clustering: in soft clustering, a data point can belong to more than one cluster with some probability or likelihood value. For example, you could identify some locations as the border points belonging to two or more boroughs.
+
+```{r}
+
+source("setup.R")
+```
+
+
+
+```{r}
+t3.data.ssq.base <- filter(t3.data.ssq, redcap_event_name == "baseline_arm_1")
+
+t3.data.ssq.base$ssq12_dk_complete <- NULL
+t3.data.ssq.base$ssq_space_mean <- as.integer(t3.data.ssq.base$ssq_space_mean)
+t3.data.ssq.base$ssq_speech_mean <- as.integer(t3.data.ssq.base$ssq_speech_mean)
+t3.data.ssq.base$ssq_sound_mean <- as.integer(t3.data.ssq.base$ssq_sound_mean)
+t3.data.ssq.base <- na.omit(t3.data.ssq.base)
+
+
+t3.data.ssq.diff <- t3.data.ssq %>% filter(redcap_event_name == "baseline_arm_1") %>% select(record_id, IsDrawerUser, IsT1DrawerUser) %>% merge(ssq_diff, by="record_id")
+```
+
+# K-means
+
+## SSQ Baseline
+
+```{r}
+set.seed(20)
+clusters <- kmeans(t3.data.ssq.base[,15:17], 3)
+
+# Save the cluster number in the dataset as column 'Borough'
+t3.data.ssq.base$Cluster <- as.factor(clusters$cluster)
+
+# Sorting
+sorted <- t3.data.ssq.base %>% group_by(Cluster) %>% summarise(mean = mean(c(ssq_speech_mean, ssq_space_mean, ssq_sound_mean)), n = n())
+
+sorted_borough <- sorted[order(sorted$mean),]$Cluster
+
+t3.data.ssq.base$Cluster <- factor(t3.data.ssq.base$Cluster, levels = sorted_borough, ordered = TRUE)
+
+str(clusters)
+
+# Writing
+t3.data.ssq.base %>% group_by(Cluster) %>% 
+  summarise(speech = mean(ssq_speech_mean), sound = mean(ssq_sound_mean), space = mean(ssq_space_mean) , n = n())
+
+#plotting
+ggplot(t3.data.ssq.base) + 
+  geom_point(aes(x=ssq_speech_mean, y=ssq_space_mean, color=Cluster))
+
+ggplot(t3.data.ssq.base) + 
+  geom_bar(aes(x=Cluster, fill=IsT1DrawerUser, color=IsDrawerUser), position='fill')+
+  scale_fill_hue(l=60, c=60)
+
+t3.data.ssq.base <- merge(t3.data.ssq.base, df_audiogram, by=c('record_id'))
+
+ggplot(t3.data.ssq.base) + 
+  geom_bar(aes(x=Cluster, fill=Class), position='fill', color="black") + 
+  scale_fill_hue(l=80, c=80)
+
+# Elbow method
+k.max <- 15
+data <- na.omit(t3.data.ssq.base[,15:17])
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+wss
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+Makes everything lag but very 3 dimensionally
+```{r}
+plot_ly(t3.data.ssq.base, x = ~ssq_space_mean, y = ~ssq_speech_mean, z = ~ssq_sound_mean, color = ~Cluster) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'space'),
+                     yaxis = list(title = 'speech'),
+                     zaxis = list(title = 'sound')))
+```
+
+## ssq digg
+
+```{r}
+
+t3.data.ssq.diff <- t3.data.ssq %>% filter(redcap_event_name == "baseline_arm_1") %>% select(record_id, IsDrawerUser, IsT1DrawerUser) %>% merge(ssq_diff, by="record_id")
+
+t3.data.ssq.diff <- t3.data.ssq.diff %>% filter(!is.na(ssq_speech_mean) & !is.na(ssq_space_mean) & !is.na(ssq_sound_mean))
+
+set.seed(20)
+
+clusters <- kmeans(t3.data.ssq.diff[,18:20], 5)
+
+# Save the cluster number in the dataset as column 'Borough'
+t3.data.ssq.diff$Cluster <- as.factor(clusters$cluster)
+
+# Sorting
+sorted <- t3.data.ssq.diff %>% group_by(Cluster) %>% summarise(mean = mean(c(ssq_speech_mean, ssq_space_mean, ssq_sound_mean)), n = n())
+
+sorted_borough <- sorted[order(sorted$mean),]$Cluster
+
+t3.data.ssq.diff$Cluster <- factor(t3.data.ssq.diff$Cluster, levels = sorted_borough, ordered = TRUE)
+
+str(clusters)
+
+# Writing
+t3.data.ssq.diff %>% group_by(Cluster) %>% 
+  summarise(speech = mean(ssq_speech_mean), sound = mean(ssq_sound_mean), space = mean(ssq_space_mean) , n = n())
+
+#plotting
+ggplot(t3.data.ssq.diff) + 
+  geom_point(aes(x=ssq_speech_mean, y=ssq_space_mean, color=Cluster))
+
+ggplot(t3.data.ssq.diff) + 
+  geom_bar(aes(x=Cluster, fill=IsT1DrawerUser, color=IsDrawerUser), position='fill')+
+  scale_fill_hue(l=60, c=60)
+
+t3.data.ssq.diff <- merge(t3.data.ssq.diff, df_audiogram, by=c('record_id'))
+
+ggplot(t3.data.ssq.diff) + 
+  geom_bar(aes(x=Cluster, fill=Class), position='fill', color="black") + 
+  scale_fill_hue(l=80, c=80)
+
+# Elbow method
+k.max <- 15
+data <- na.omit(t3.data.ssq.diff[,18:20])
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+wss
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+```
+```{r}
+plot_ly(t3.data.ssq.diff, x = ~ssq_space_mean, y = ~ssq_speech_mean, z = ~ssq_sound_mean, color = ~Cluster) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'space'),
+                     yaxis = list(title = 'speech'),
+                     zaxis = list(title = 'sound')))
+
+
+ggplot(t3.data.ssq.diff) + 
+  geom_bar(aes(x=Cluster, fill=IsT1DrawerUser, color=IsDrawerUser), position='fill')+
+  scale_fill_hue(l=60, c=60)
+
+t3.data.ssq.diff 
+```
+
+
+
+## Motivation
+
+```{r}
+set.seed(20)
+
+#elbow
+k.max <- 15
+data <- na.omit(df_motivation[,5:6])
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+wss
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+clusters <- kmeans(na.omit(df_motivation[,5:6]), 4)
+
+# Save the cluster number in the dataset as column 'Borough'
+df_motivation.k <- na.omit(df_motivation)
+df_motivation.k$Cluster <- as.factor(clusters$cluster)
+
+str(clusters)
+
+ggplot(df_motivation.k) + 
+  geom_bin2d(aes(x=motivation_line_1_ver2, y=motivation_line_2_ver2, color=Cluster))
+```
+
+# PCA
+
+```{r}
+t3.ssq.base.pca <- prcomp(t3.data.ssq.base[,c(3:14)], center = TRUE,scale. = TRUE)
+summary(t3.ssq.base.pca)
+plot(t3.ssq.base.pca)
+
+#elbow
+k.max <- 15
+data <- na.omit(t3.ssq.base.pca$x[,1:3])
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+wss
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+clusters <- kmeans(na.omit(t3.ssq.base.pca$x[,1:3]), 3)
+
+bla <- cbind(na.omit(t3.data.ssq.base[,3:14]), t3.ssq.base.pca$rotation)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

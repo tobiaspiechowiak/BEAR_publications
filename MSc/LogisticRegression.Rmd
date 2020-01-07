@@ -1,0 +1,224 @@
+---
+title: "Try logistic regression"
+output: html_notebook
+---
+
+Here, I want to try a classification tree . 
+
+
+```{r}
+
+source('setup.R')
+
+datafolder <- "../../Data/data/MsC/"
+
+df_audiogram <- read.csv(paste0(datafolder,'MeanAudiogramClass.csv'))
+
+df_audiogram <- df_audiogram[,-c(1)]
+
+names(df_audiogram) <- c('record_id','AudClass')
+
+```
+
+Clean up the data
+
+```{r}
+tmp <- t3.data.15d %>% merge(t3.data.ssq,by = c('record_id','redcap_event_name')) %>%
+  merge(t3.data.thi, c('record_id','redcap_event_name')) %>% 
+  merge(df_fitting_rationale, c('record_id','redcap_event_name')) %>% merge(df_ioi, c('record_id','redcap_event_name'))
+
+tmp <- tmp[,-c(2)]
+
+
+tmp <- tmp %>% merge(df_tinnitus, c('record_id')) %>%
+merge(df_motivation, c('record_id')) %>%
+merge(df_ha_use, c('record_id')) %>% 
+merge(df_audiogram, c('record_id')) 
+
+
+#tmp <- tmp[!duplicated(tmp$record_id),]
+
+drops <- c('IsDrawerUser.y','redcap_event_name.y','smoking_number_of_cigarets','record_id')
+data.lr <- tmp[,!(names(tmp) %in% drops)]
+
+
+data.lr[,2:98] <- sapply(data.lr[,2:98], as.numeric)
+
+data.lr$ssq_space_mean[data.lr$ssq_space_mean == 'NaN'] <- 50
+data.lr$ssq_sound_mean[data.lr$ssq_sound_mean == 'NaN'] <- 50
+data.lr$ssq_speech_mean[data.lr$ssq_speech_mean == 'NaN'] <- 50
+data.lr$ha_manufactor.x <- factor(data.lr$ha_manufactor.x,labels = c('Oticon','Bernafon','Widex','GN Resound','Rextron','Siemens', 'Phonak' ))
+#data.lr$tinnitus_irritable <- factor(data.lr$tinnitus_irritable, labels = c('No','Yes','Sometimes'))
+
+data.lr$IsT1DrawerUser <- factor(data.lr$IsT1DrawerUser,labels = c('Not in Drawer','In Drawer'))
+
+
+#data.lr$leftAud <- data.lr$Class.x
+#data.lr$rightAud <- data.lr$Class.y
+
+#data.lr$meanAud <- factor(floor((as.numeric(data.lr$leftAud) + as.numeric(data.lr$rightAud) ) / 2), labels = c('N1','N2','N3','N4','N5','N6','N7','S1','S2','S3'))
+
+#data.lr <- data.lr[!data.lr$leftAud == 'N1',]
+#data.lr <- data.lr[!data.lr$leftAud == 'N2',]
+
+#data.lr <- data.lr[!data.lr$rightAud == 'N1',]
+#data.lr <- data.lr[!data.lr$rightAud == 'N2',]
+
+
+```
+
+Try classification tree to predict low usage (< 3h)
+
+```{r}
+
+#colnames(data.lr)[1] <- 'D15_1'
+#colnames(data.lr)[5] <- 'D15_2'
+#colnames(data.lr)[24] <- 'SSQ_1'
+#colnames(data.lr)[26] <- 'SSQ_2'
+#colnames(data.lr)[83] <- 'IOI_1'
+#colnames(data.lr)[86] <- 'IOI_2'
+#colnames(data.lr)[100] <- 'Alcohol'
+
+
+
+library('rpart')
+library('partykit')
+library('rpart.plot')
+library('rattle')
+library('caret')
+
+eq <- IsT1DrawerUser ~ age +  sex + fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + fifteen_d_6_eat + fifteen_d_1_move + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee + fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression + fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 + ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14  + tinnitus_konc + tinnitus_understanding + tinnitus_angry + tinnitus_confusion + tinnitus_desperation + tinnitus_complains + tinnitus_tofallasleep + tinnitus_escape + tinnitus_social_act + tinnitus_frustration + tinnitus_disease + tinnitus_enjoy_life + tinnitus_work_ability + tinnitus_irritable + tinnitus_reading_difficult + tinnitus_feel_sad + tinnitus_family_friends + tinnitus_attention + tinnitus_control + tinnitus_tired + tinnitus_depressed +  tinnitus_anxious_scared +  tinnitus_manage + tinnitus_stressed  + tinnitus_insecure +   motivation_line_1_ver2 + motivation_line_2_ver2 + own_ha.x + noise_at_work + dissiness + hyperacusis +  noise_industry_1 + noise_employment_yrs_2 + noise_type_1 + noise_work_intensity_1 + noise_work_duration_1 + alcohol_consumption + fittingrationale + ha_type  + ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_7 + ha_number_of_ha + ha_dispencer +  ha_type + AudClass 
+
+eq2 <- IsT1DrawerUser ~ IOI_1 + IOI_2 + SSQ_1 + SSQ_2 + D15_1 + D15_2 + Alcohol
+
+  #ssq_speech_mean + ssq_space_mean + ssq_sound_mean 
+
+# ha_manufactor.x +
+
+#rpart
+png('rpart.png',width = 2000,height = 1500)
+
+
+fit.rpart <- rpart(eq, data = data.lr, method = 'class', parms = list(split = 'information'), control = rpart.control(cp = 0.01))
+
+#plot(as.party(fit.rpart), main = 'When is the hearing aid put into "the Drawer"?')
+rpart.plot(fit.rpart, type = 4, yesno = 2, extra = 1)
+
+dev.off()
+
+#calculate importance of predictors 
+library('ggplot2')
+library('dplyr')
+
+tmp <- data.frame(fit.rpart$variable.importance)
+
+tmp <- tmp / sum(tmp) * 100
+
+tmp$names <- rownames(tmp)
+
+names(tmp) <- c('Importance','Variable')
+
+tmp <- tmp[1:7,] %>% arrange(Importance) 
+
+png('Importance.png', height = 500, width = 1000)
+
+ggplot(tmp, aes(y = Importance, x = reorder(Variable,Importance))) + 
+  coord_flip() +  
+  geom_bar(stat = 'identity', width = 0.95) + 
+  xlab('') + ylim(c(0, 50)) + ylab('Importance %') + 
+  theme(axis.text.x = element_text(size = 20)) +
+  theme(axis.text.y = element_text(size = 20)) + 
+  theme(axis.title = element_text(size = 20)) 
+  
+  
+dev.off()
+
+
+
+```
+
+
+Now we try to predict use time with regression tree: 
+
+
+```{r}
+
+#colnames(data.lr)[83] <- 'IOI_1'
+#colnames(data.lr)[81] <- 'IOI_2'
+#colnames(data.lr)[24] <- 'SSQ_1'
+colnames(data.lr)[104] <- 'Motivation'
+colnames(data.lr)[94] <- 'Hyperacusis'
+colnames(data.lr)[115] <- 'Audiogram'
+
+
+
+eq <- ha_usetime_hours_per_day ~ age +  sex + fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + fifteen_d_6_eat + fifteen_d_1_move + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee + fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression + fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 + ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14  + tinnitus_konc + tinnitus_understanding + tinnitus_angry + tinnitus_confusion + tinnitus_desperation + tinnitus_complains + tinnitus_tofallasleep + tinnitus_escape + tinnitus_social_act + tinnitus_frustration + tinnitus_disease + tinnitus_enjoy_life + tinnitus_work_ability + tinnitus_irritable + tinnitus_reading_difficult + tinnitus_feel_sad + tinnitus_family_friends + tinnitus_attention + tinnitus_control + tinnitus_tired + tinnitus_depressed +  tinnitus_anxious_scared +  tinnitus_manage + tinnitus_stressed  + tinnitus_insecure +   motivation_line_1_ver2 + Motivation + own_ha.x + noise_at_work + dissiness + Hyperacusis +  noise_industry_1 + noise_employment_yrs_2 + noise_type_1 + noise_work_intensity_1 + noise_work_duration_1 + alcohol_consumption + fittingrationale + ha_type  + ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_7 + ha_number_of_ha + ha_dispencer +  ha_type + Audiogram + Score
+
+eq2 <- ha_usetime_hours_per_day ~  age + IOI_1 + IOI_2 + SSQ_1 + Motivation + Hyperacusis + Audiogram 
+
+
+fit.reg <- rpart(eq, data = data.lr, method = 'anova', control = rpart.control(cp = 0.007))
+
+#png('rpart_reg.png',width = 3000,height = 2000)
+
+#plot(as.party(fit.reg))
+
+rpart.plot(fit.reg,  type = 4, yesno = 2, extra = 1)
+
+#dev.off()
+
+```
+
+```{r}
+
+colnames(data.lr)[104] <- 'Motivation'
+colnames(data.lr)[94] <- 'Hyperacusis'
+colnames(data.lr)[115] <- 'Audiogram'
+
+data.lr.nan <- data.lr[, colSums(is.na(data.lr)) <= 700]
+
+
+data.lr$Audiogram.Int <- as.integer(data.lr$Audiogram)
+
+data.lr$Audiogram.Int[data.lr$Audiogram.Int == c(7)] <- 1
+data.lr$Audiogram.Int[data.lr$Audiogram.Int == c(8)] <- 2
+data.lr$Audiogram.Int[data.lr$Audiogram.Int == c(9)] <- 3
+
+data.lr$sex.Int <- as.integer(data.lr$sex)
+
+data.lr$fifteen_d_1_move.Int <- as.integer(data.lr$fifteen_d_1_move)
+
+data.lr$own_ha.x.Int <- as.integer(data.lr$own_ha.x)
+
+data.lr$alcohol_consumption.Int <- as.integer(data.lr$alcohol_consumption)
+
+data.lr$noise_work_duration_1.Int <- as.integer(data.lr$noise_work_duration_1)
+
+data.lr$noise_work_intensity_1.Int <- as.integer(data.lr$noise_work_intensity_1)
+
+data.lr$ha_type[(data.lr$ha_type == 1) | (data.lr$ha_type == 2)] <- 1 
+data.lr$ha_type[!((data.lr$ha_type == 1) | (data.lr$ha_type == 2))] <- 2
+
+
+
+
+eq3 <- ha_usetime_hours_per_day ~ ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_7  + Motivation + ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 + ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14 + Audiogram.Int + age +  sex.Int + 
+ fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + fifteen_d_6_eat + fifteen_d_1_move.Int + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee + fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression + fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + dissiness + Hyperacusis +  alcohol_consumption.Int 
+
+<<<<<<< HEAD
+fit.lm <- lm(eq3,data = data.lr, na.action=na.exclude)
+
+summary(fit.lm)
+
+
+
+
+
+=======
+rpart.plot(fit.rpart)
+>>>>>>> 548a9c3853f899a04753e1dbd68eb0933a4ce97a
+```
+
+
+
+

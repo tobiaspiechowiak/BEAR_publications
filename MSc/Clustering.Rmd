@@ -1,0 +1,175 @@
+---
+title: "Clustering"
+output: html_notebook
+---
+
+# Reading data
+```{r}
+t3.data.ssq.base <- filter(t3.data.ssq, redcap_event_name == "baseline_arm_1")
+
+t3.data.ssq.base$ssq12_dk_complete <- NULL
+t3.data.ssq.base$ssq_space_mean <- as.integer(t3.data.ssq.base$ssq_space_mean)
+t3.data.ssq.base$ssq_speech_mean <- as.integer(t3.data.ssq.base$ssq_speech_mean)
+t3.data.ssq.base$ssq_sound_mean <- as.integer(t3.data.ssq.base$ssq_sound_mean)
+t3.data.ssq.diff <- t3.data.ssq %>% filter(redcap_event_name == "baseline_arm_1") %>% select(record_id, IsDrawerUser, IsT1DrawerUser) %>% merge(ssq_diff, by="record_id")
+```
+
+# SSQ-diff all
+```{r}
+# Data preperation
+t3.data.ssq.diff <- t3.data.ssq %>% filter(redcap_event_name == "baseline_arm_1") %>% select(record_id,redcap_event_name, IsDrawerUser, IsT1DrawerUser, IsT3DrawerUser) %>% merge(ssq_diff, by=c("record_id","redcap_event_name"))
+
+
+t3.data.ssq.diff <- t3.data.ssq.diff %>% filter(!is.na(ssq_speech_mean) & !is.na(ssq_space_mean) & !is.na(ssq_sound_mean))
+
+t3.data.ssq.diff <- t3.data.ssq.diff[!duplicated(t3.data.ssq.diff$record_id),]
+  
+t3.data.ssq.diff <- t3.data.ssq.no.na %>% group_by(record_id) %>% 
+  summarise_all(funs(ifelse(is.numeric(.), last(.)-first(.), first(.))))
+
+# Clustering
+set.seed(20)
+clusters <- kmeans(t3.data.ssq.diff[,3:14], 3)
+
+# Save the cluster number in the dataset
+t3.data.ssq.diff$Cluster <- as.factor(clusters$cluster)
+
+# Sorting
+sorted <- t3.data.ssq.diff %>% group_by(Cluster) %>% summarise(mean = mean(c(ssq_speech_mean, ssq_space_mean, ssq_sound_mean)), n = n())
+
+sorted_borough <- sorted[order(sorted$mean),]$Cluster
+
+t3.data.ssq.diff$Cluster <- factor(t3.data.ssq.diff$Cluster, levels = sorted_borough, ordered = TRUE)
+
+str(clusters)
+
+# Preparing data for plotting
+clust.res <- t3.data.ssq.diff %>% group_by(Cluster) %>% 
+  summarise(spe_q1 = mean(ssq_speech_q1), q4 = mean(ssq_speech_q4), 
+            q10 = mean(ssq_speech_q10), q11 = mean(ssq_speech_q11), 
+            q12=mean(ssq_speech_q12), spc_q6 = mean(ssq_space_q6),
+            q9 = mean(ssq_space_q9), q13= mean(ssq_space_q13),
+            snd_q2 = mean(ssq_sound_q2), q7 = mean(ssq_sound_q7),
+            q9 = mean(ssq_sound_q9), q14 = mean(ssq_sound_q14),
+            n = n())
+
+temp <- t3.data.ssq.diff %>% merge(t3.data.ssq.no.na %>% filter(redcap_event_name=="baseline_arm_1"), by=c("record_id"))
+
+temp.res <- temp %>% group_by(Cluster) %>% 
+  summarise(spe_q1 = mean(ssq_speech_q1.y), q4 = mean(ssq_speech_q4.y), 
+            q10 = mean(ssq_speech_q10.y), q11 = mean(ssq_speech_q11.y), 
+            q12=mean(ssq_speech_q12.y), spc_q6 = mean(ssq_space_q6.y),
+            q9 = mean(ssq_space_q9.y), q13= mean(ssq_space_q13.y),
+            snd_q2 = mean(ssq_sound_q2.y), q7 = mean(ssq_sound_q7.y),
+            q9 = mean(ssq_sound_q9.y), q14 = mean(ssq_sound_q14.y),
+            n = n())
+
+t3.data.ssq.diff <- merge(t3.data.ssq.diff, df_user_worstear, by=c('record_id'))
+```
+
+## Plotting
+```{r, fig.width=10,fig.height=6}
+# Elbow method
+k.max <- 15
+data <- na.omit(t3.data.ssq.diff[,grepl("ssq_", colnames(t3.data.ssq.diff))])
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+wss
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+# Use-time & Drawer users
+grid.arrange(
+
+  ggplot(t3.data.ssq.diff) + geom_bar(aes(x=Cluster, fill=Cluster), color="black")+ scale_fill_manual(values=col3_red) + 
+    theme_minimal()+ theme(legend.position = "none") + ggtitle("Amount of participants in clusters") + ylab("Count"),
+  
+  ggplot(t3.data.ssq.diff,aes(x=Cluster, fill=factor(IsT1DrawerUser, labels=c("No","Yes")), color=Cluster)) + geom_bar(position="fill", color="black") +
+      scale_fill_manual(values=col3_red) +
+      theme_minimal() + theme(legend.position = "none") + ylab("Count (%)") + scale_y_continuous(labels = percent, limits = c(0,0.2)) +
+      ggtitle("Percentage of drawer users")+ xlab("Cluster"),
+  
+  ggplot(t3.data.ssq.diff %>% 
+           merge(select(df_ha_use, record_id, ha_usetime_hours_per_day), by="record_id") %>% filter(ha_usetime_hours_per_day < 18)) + 
+    geom_boxplot(aes(x=Cluster, fill=Cluster, y=ha_usetime_hours_per_day), color="black")+
+    scale_fill_manual("", values=col3_red)+ 
+    ylab("Use time in hours per day")+ theme(legend.position = "empty") + 
+    ggtitle("Average use time per cluster") + theme_minimal() +theme(legend.position = "none"),
+
+  nrow=1
+)
+
+
+# Preperation - SSQ base + diff
+melted_clus.res <- melt(clust.res, id.vars = "Cluster")
+melted_clus.res <- melted_clus.res %>%  filter(variable != "n")
+melted.temp <- melt(temp.res[1:12], id.vars = "Cluster")
+melted_clus.res <- melted_clus.res %>% 
+  mutate(variable = factor(variable, levels = unique(variable)))
+
+
+# Preperation - SSQ follow
+t3.temp.follow <- merge(t3.data.ssq.diff[,c(1,22)], t3.data.ssq.no.na %>% filter(redcap_event_name == "besoeg2_arm_1"), by=c("record_id"))
+temp.follow.mean <- t3.temp.follow %>% group_by(Cluster) %>% 
+  summarise(spe_q1 = mean(ssq_speech_q1), q4 = mean(ssq_speech_q4), 
+            q10 = mean(ssq_speech_q10), q11 = mean(ssq_speech_q11), 
+            q12=mean(ssq_speech_q12), spc_q6 = mean(ssq_space_q6),
+            q9 = mean(ssq_space_q9), q13= mean(ssq_space_q13),
+            snd_q2 = mean(ssq_sound_q2), q7 = mean(ssq_sound_q7),
+            q9 = mean(ssq_sound_q9), q14 = mean(ssq_sound_q14),
+            n = n())
+melted_follow <- melt(temp.follow.mean[1:12], id.vars = "Cluster")
+
+grid.arrange(
+  # SSQ - baseline
+  ggplot(data=melted.temp ,aes(variable, value)) + 
+    geom_line(aes(color = Cluster, group = Cluster), size=1) +
+    scale_color_manual("Benefit",values= col3_red, labels=c("Low","Medium","High")) + 
+    ggtitle("Baseline SSQ score") + 
+    xlab("Question (speech, space, sound)") + ylab("Score") + theme_minimal() + ylim(0, 100)+theme(legend.position = "none"),
+  
+  # SSQ - Diff
+  ggplot(data=melted_clus.res ,aes(variable, value)) + 
+    geom_line(aes(color = Cluster, group = Cluster), size=1) +
+    scale_color_manual("Benefit",values= col3_red, labels=c("Low","Medium","High")) + 
+    ggtitle("Difference of SSQ score from baseline to follow-up") + 
+    xlab("Question (speech, space, sound)") + ylab("Difference") + theme_minimal(),
+  
+  # SSQ- Follow
+  ggplot(data=melted_follow ,aes(variable, value)) + 
+    geom_line(aes(color = Cluster, group = Cluster), size=1) +
+    scale_color_manual("Benefit",values= col3_red, labels=c("Low","Medium","High")) + 
+    ggtitle("Follow-up SSQ score") + 
+    xlab("Question (speech, space, sound)") + ylab("Score") + theme_minimal() + ylim(0, 100)+theme(legend.position = "none"),
+  
+  # Audigram in clusters
+  ggplot(t3.data.ssq.diff) + 
+    geom_bar(aes(x=Cluster, fill=class), position='fill', color="black") + 
+    scale_fill_brewer("Hearing Loss\nClassification",palette = "RdYlBu", direction = -1) + 
+    ggtitle("Distribution of classifications") + ylab("Count (%)") +xlab("Benefit")+ theme_minimal() +scale_x_discrete(labels=c("Low","Medium","High")),
+  
+  nrow=2,ncol=2
+)
+
+ggplot(melt(t3.data.ssq.diff[,c(3:14,21:23)], id.vars=c("Cluster","class","IsDrawerUser")), aes(x=variable, fill=Cluster, y=value)) + geom_boxplot(alpha=0.2) + 
+  geom_smooth(aes(color = Cluster, group = Cluster)) +
+  scale_fill_brewer(palette = "RdYlBu")  +
+  scale_color_brewer(palette = "RdYlBu") 
+
+```
+
+```{r}
+
+```
+
+```{r}
+t3.own.ha <- merge(t3.data.ssq.diff, df_motivation[,c(1,7)], by=c("record_id"))
+ggplot(t3.own.ha, aes(x=Cluster, fill=own_ha)) + geom_bar(position = 'fill', color="black") + 
+  scale_y_continuous(labels=percent) +
+  geom_text(stat="count", aes(label = percent(..count..)), position = position_fill(vjust = 0.5))
+```
+
+

@@ -1,0 +1,51 @@
+---
+title: "RandomForest"
+output: html_notebook
+---
+
+```{r setup}
+#source("setup.R")
+if(!require("randomForest")){
+  install.packages("randomForets")
+  library(randomForest)
+}
+```
+
+```{r}
+rf.func <- function(data){
+  data$IsDrawerUser <- factor(data$IsDrawerUser, levels = c(T,F), labels = c("Yes", "No"))
+  ind <- sample(2, nrow(data), replace = TRUE, prob=c(0.7, 0.3))
+  rf.train <- data[ind == 1, ]
+  rf.test <-  data[ind == 2, ]
+  
+  rf.fit <- randomForest(IsDrawerUser ~ .-record_id, data=rf.train)
+  plot(rf.fit)
+  print(rf.fit$importance)
+  print(rf.fit$confusion)
+  table(Actual=rf.test$IsDrawerUser, Predicted=predict(rf.fit, rf.test))
+}
+
+
+```
+
+```{r}
+rf.func(t3.data.15d %>% na.omit)
+```
+
+```{r}
+rf.func(t3.data.ssq %>% na.omit)
+```
+
+```{r}
+rf.func(t3.data.thi %>% na.omit)
+```
+
+```{r}
+rf.func(df_ioi %>% merge(df_audiogram, by="record_id") %>% mutate(IsDrawerUser = .$record_id %in% low_benefit.hear_time$record_id) %>% na.omit)
+```
+
+```{r}
+rf.func(merge(t3.data.15d, t3.data.ssq, by=c("record_id", "redcap_event_name", "IsDrawerUser")) %>% merge(t3.data.thi, by=c("record_id", "redcap_event_name", "IsDrawerUser")) %>% na.omit)
+```
+
+Using random forest on SSQ, 15D, THI, IOI+Audiograms and a combination of the first 3. Only IOI+Audiogram had some small amount of success, but this was expected as the predictor was defined based on data in these data sets.

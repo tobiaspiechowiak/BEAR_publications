@@ -1,0 +1,35 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+a <- t3.data.15d.no.na %>% select(record_id, redcap_event_name, fifteen_d_3_hear) %>% spread(key="redcap_event_name", value="fifteen_d_3_hear") %>% na.omit() %>% mutate_if(is.ordered, as.numeric)
+
+difference <- a[,3]-a[,2]
+
+
+t.test(difference, alternative = "greater")
+```
+
+```{r}
+
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,1]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,2]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,3]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,4]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,5]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,6]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,7]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,8]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,9]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,10]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,11]), alternative = "greater")
+t.test(0+((t3.diff.ssq.no.na %>% select(starts_with("ssq_"), -ends_with("_mean")))[,12]), alternative = "greater")
+
+```
+

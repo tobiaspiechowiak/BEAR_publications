@@ -1,0 +1,141 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+http://r.789695.n4.nabble.com/Rpart-plot-produces-no-text-td4722264.html
+
+
+```{r }
+library('rpart')
+library("rattle") 
+library('partykit')
+library('rpart.plot')
+```
+
+
+# data prep
+```{r}
+t3.everything <- t3.data.15d %>% 
+  merge(t3.data.ssq, by = c('record_id', 'redcap_event_name', 'IsDrawerUser')) %>%
+  merge(t3.data.thi, by = c('record_id', 'redcap_event_name', 'IsDrawerUser')) %>% 
+  merge(df_motivation, by = c('record_id', 'redcap_event_name')) %>%
+  merge(df_tinnitus, by = c('record_id', 'redcap_event_name')) %>% 
+  merge(df_fitting_rationale, by = c('record_id', 'redcap_event_name')) %>% 
+  merge(df_ioi, by = c('record_id', 'redcap_event_name')) %>% 
+  merge(df_ha_use, by = c('record_id', 'redcap_event_name'))  %>%
+  merge(df_audiogram_left, by=c('record_id'))
+
+t3.everything <- filter(t3.everything, redcap_event_name == "baseline_arm_1")
+
+drops <- c('smoking_number_of_cigarets','ha_model2','ha_model3','ha_model4','ha_model5','ha_model6','ha_model7','ha_type_mm_complete','redcap_event_name.y','ioiha_dk_complete','redcap_event_name.y','redcap_event_name.x.1','IsT1DrawerUser','tinnitus.y', 'ha_manufactor.x', 'ha_manufactor.x', 'motivation_line_1_ver2', 'motivation_line_2_ver2', 'ha_usetime', 'ha_manufactor.y')
+
+t3.everything <- t3.everything[,!(names(t3.everything) %in% drops)]
+
+# numeric, yes or no?
+#t3.everything[,4:94] <- sapply(t3.everything[,4:94], as.numeric)
+
+t3.everything$IsDrawerUser <- factor(t3.everything$IsDrawerUser,labels = c('!D','D'))
+```
+
+# drawer user (all)
+```{r}
+eq <- IsDrawerUser ~  age + sex + fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + 
+  fifteen_d_6_eat + fifteen_d_1_move + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee +
+  fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression +
+  fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + 
+  ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 +
+  ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14 +  
+  tinnitus.x + tinnitus_konc + tinnitus_understanding + tinnitus_angry + tinnitus_confusion +
+  tinnitus_desperation + tinnitus_complains + tinnitus_tofallasleep + tinnitus_escape + tinnitus_social_act +
+  tinnitus_frustration + tinnitus_disease + tinnitus_enjoy_life + tinnitus_work_ability + tinnitus_irritable +
+  tinnitus_reading_difficult + tinnitus_feel_sad + tinnitus_family_friends + tinnitus_attention +
+  tinnitus_control + tinnitus_tired + tinnitus_depressed + tinnitus_anxious_scared +  tinnitus_manage +
+  tinnitus_stressed  + tinnitus_insecure + Score + THI_grade + own_ha.x + 
+  noise_at_work + dissiness + hyperacusis + noise_industry_1 + noise_employment_yrs_2 + noise_type_1 +
+  noise_work_intensity_1 + noise_work_duration_1 + 
+  alcohol_consumption + fittingrationale + ha_type  +
+  ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_7 + 
+  ha_number_of_ha + ha_dispencer + THI_grade + ha_type + 
+  Class + AC250 + AC500 + AC1k + AC2k + AC4k + AC6k
+  
+
+
+tree <- rpart(eq, data=t3.everything, method="class", #method = "class"
+              parms = list(split = 'information'), 
+              control = rpart.control(cp = 0.007)) 
+
+summary(tree)
+
+rpart.plot(tree, box.palette = "BuRd", shadow.col = "gray", nn=TRUE)
+
+plot(as.party(tree)) 
+
+```
+
+## use time
+```{r}
+eq <- ha_usetime_hours_per_day ~  age + sex + fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + 
+  fifteen_d_6_eat + fifteen_d_1_move + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee +
+  fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression +
+  fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + 
+  ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 +
+  ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14 +  
+  tinnitus.x + tinnitus_konc + tinnitus_understanding + tinnitus_angry + tinnitus_confusion +
+  tinnitus_desperation + tinnitus_complains + tinnitus_tofallasleep + tinnitus_escape + tinnitus_social_act +
+  tinnitus_frustration + tinnitus_disease + tinnitus_enjoy_life + tinnitus_work_ability + tinnitus_irritable +
+  tinnitus_reading_difficult + tinnitus_feel_sad + tinnitus_family_friends + tinnitus_attention +
+  tinnitus_control + tinnitus_tired + tinnitus_depressed + tinnitus_anxious_scared +  tinnitus_manage +
+  tinnitus_stressed  + tinnitus_insecure + Score + THI_grade + own_ha.x + 
+  noise_at_work + dissiness + hyperacusis + noise_industry_1 + noise_employment_yrs_2 + noise_type_1 +
+  noise_work_intensity_1 + noise_work_duration_1 + 
+  alcohol_consumption + fittingrationale + ha_type  +
+  ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_7 + 
+  ha_number_of_ha + ha_dispencer + THI_grade + ha_type + 
+  Class + AC250 + AC500 + AC1k + AC2k + AC4k + AC6k
+
+# tree
+
+tree <- rpart(eq, data=t3.everything, method="anova", 
+              parms = list(split = 'information'), 
+              control = rpart.control(cp = 0.007)) 
+
+plot(as.party(tree))
+rpart.plot(tree, type = 5, yesno = 2)
+```
+
+# Life satisfaction
+
+```{r}
+eq <- ioi_ha_7 ~  age + sex + fifteen_d_3_hear + fifteen_d_4_breathe + fifteen_d_5_sleep + 
+  fifteen_d_6_eat + fifteen_d_1_move + fifteen_d_2_sight + fifteen_d_7_speak + fifteen_d_8_pee +
+  fifteen_d_9_activity + fifteen_d_10_mental + fifteen_d_11_unplesant + fifteen_d_12_depression +
+  fifteen_d_13_stress + fifteen_d_14_power + fifteen_d_15_sex + 
+  ssq_speech_q1 + ssq_speech_q4 + ssq_sound_q2 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 +
+  ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14 +  
+  tinnitus.x + tinnitus_konc + tinnitus_understanding + tinnitus_angry + tinnitus_confusion +
+  tinnitus_desperation + tinnitus_complains + tinnitus_tofallasleep + tinnitus_escape + tinnitus_social_act +
+  tinnitus_frustration + tinnitus_disease + tinnitus_enjoy_life + tinnitus_work_ability + tinnitus_irritable +
+  tinnitus_reading_difficult + tinnitus_feel_sad + tinnitus_family_friends + tinnitus_attention +
+  tinnitus_control + tinnitus_tired + tinnitus_depressed + tinnitus_anxious_scared +  tinnitus_manage +
+  tinnitus_stressed  + tinnitus_insecure + Score + THI_grade + own_ha.x + 
+  noise_at_work + dissiness + hyperacusis + noise_industry_1 + noise_employment_yrs_2 + noise_type_1 +
+  noise_work_intensity_1 + noise_work_duration_1 + 
+  alcohol_consumption + fittingrationale + ha_type  +
+  #ioi_ha_2 + ioi_ha_3 + ioi_ha_4 + ioi_ha_5 + ioi_ha_6 + ioi_ha_1 +
+  ha_number_of_ha + ha_dispencer + THI_grade + ha_type + 
+  Class + AC250 + AC500 + AC1k + AC2k + AC4k + AC6k
+  
+
+
+tree <- rpart(eq, data=t3.everything, method="class", #method = "class"
+              parms = list(split = 'information'), 
+              control = rpart.control(cp = 0.01)) 
+
+rpart.plot(tree, box.palette = "RdBu", shadow.col = "gray", cex = .7, nn.font=20)
+
+fancyRpartPlot(tree, cex=.3, tweak=1.5)
+
+plot(as.party(tree)) 
+```
+
+

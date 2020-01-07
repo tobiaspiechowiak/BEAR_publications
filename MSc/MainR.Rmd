@@ -1,0 +1,307 @@
+---
+title: "Data Exploration"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+DataMaid -> laver en rapport vi kan kigge på 
+
+
+```{r setup_libraries}
+library(scales)
+```
+# 1. Setup
+```{r}
+setwd("~/BearData/bear-msc")
+source("setup.R")
+```
+
+# 2. Data exploration
+In this section we first load and clean all the data, each type in its own section. In each of these section we also have an overview of the data, in the form of simple visualizations.
+
+## 2.1 Age, gender and ownership of hearing aid
+
+```{r, fig.width=12}
+grid.arrange(
+  ggplot(df_motivation) + 
+    geom_area(aes(x=age, y=..count../max(..count..)), stat = "count", fill="#aaaaff") +
+    geom_line(aes(x=age, y=cumsum(..count..)/sum(..count..)), stat="count", color="#ff8888", size=1) +
+    ylab("") + scale_y_continuous(labels = percent) + ggtitle("Age distribution") + xlab("Age"),
+  ggplot(df_motivation) + 
+    geom_bar(aes(x=factor(1), fill=sex), position = "fill") + scale_y_continuous(labels = percent) + coord_polar(theta = "y") +
+    ggtitle("Sex Ratio") + xlab(""),
+  ggplot(df_motivation) + 
+    geom_bar(aes(x=factor(1), fill=own_ha), position = "fill") + scale_y_continuous(labels = percent) + coord_polar(theta = "y") +
+    ggtitle("Owns Hearing Aid") + xlab(""),
+  ggplot(df_motivation) + 
+    geom_boxplot(aes(y=age, fill=sex)) +
+    ylab("Age") + ggtitle("Age/Sex"),
+  ggplot(df_motivation) + 
+    geom_boxplot(aes(y=age, fill=own_ha)) +
+    ylab("Age") + ggtitle("Age/Owns Hearing Aid"),
+  ggplot(df_motivation) + 
+    geom_mosaic(aes(x=product(sex, own_ha), fill=sex)) +
+    ggtitle("Sex/Owns Hearing Aid"),
+  ncol=3
+)
+
+
+```
+
+
+## 2.2 Motivation
+This data set contains values for how motivated for an improvement in hearing each subject is, as well as how much faith they have in the ability of their hearing aid. It is not really used, as most everybody answered the same. We later compared their motivation to their daily usage, an saw no correlation. (see 3.2)
+
+### 2.2.2 Overview
+*section motivation*
+```{r}
+str(df_motivation)
+melted_motivation <- melt(df_motivation, id.vars = c('record_id', 'redcap_event_name', 'sex', 'age', 'own_ha'))
+ggplot(melted_motivation) + geom_histogram(aes(x = value, fill=variable), color='red', position = 'dodge')
+```
+
+## 2.3 SSQ - Speech Spatial Qualities
+The purpose of the SSQ is to *"inquire about aspects of your ability and experience hearing and listening in different situations."* The scale is 0-100, 100 being the best. Our dataset contains an selection of questions from the full SSQ. Example:
+
+> SSQ-Speech 1: You are talking with one other person and there is a TV on in the same room. Without turning the TV down, can you follow what the person you’re talking to says?
+
+
+**
+```{r}
+
+df_ssq$ssq_speech_mean <- rowMeans(df_ssq[,grepl("ssq_speech", colnames(df_ssq))], na.rm = TRUE)
+df_ssq$ssq_space_mean <- rowMeans(df_ssq[,grepl("ssq_space", colnames(df_ssq))], na.rm = TRUE)
+df_ssq$ssq_sound_mean <- rowMeans(df_ssq[,grepl("ssq_sound", colnames(df_ssq))], na.rm = TRUE)
+
+```
+
+
+### 2.3.2 Overview
+```{r}
+ggplot(melt(filter(df_ssq, ssq12_dk_complete == "Complete"))) + 
+  geom_boxplot(mapping = aes(x = variable, y = value, color = redcap_event_name)) +
+  coord_flip() + ggtitle("Boxplot of ssq answers")
+```
+
+We look at differences in feedback from baseline to follow up. We observe considerable improvements in the follow up evaluation.
+
+```{r}
+ssq_diff <- df_ssq %>% 
+  filter(ssq12_dk_complete == "Complete") %>% 
+  filter(record_id %in% df_ssq_follow$record_id) %>% group_by(record_id) %>% 
+  summarise_each(funs(if(is.numeric(.)) last(.)-first(.) else first(.)))
+
+ggplot(melt(ssq_diff)) + geom_boxplot(mapping = aes(x=variable, y=value)) + coord_flip() + ggtitle("Change from baseline to follow up")
+```
+
+We see that there are improvements across all SSQs, however some more than others.
+The lowest being Q7: *Kan du afgøre hvilke instrumenter der spillet på når du lytter til musik?* **Score: 6.94**
+The --- being Q11: *du taler med en person i et rum, hvor der er mange personer, kan du følge med i hvad personen du taler med siger?* **Score: 16.5**
+The highest being Q15: *Er du nødt til at anstrenge dig meget for at høre, hvad der bliver sagt i en samtale med andre personer?* **Score: 17.2**
+
+## 2.4 IOI-HA - International Outcome Inventory for Hearing Aids
+"The International Outcome Inventory for Hearing Aids (IOI-HA) was developed as a product of an international workshop on Self-Report Outcome Measures in Audiological Rehabilitation (Cox et al, 2000). The workshop participants recognized a need to be able to combine and compare data from different investigations and clinical service models."
+
+Example:
+> 1. Tænk på hvor meget du har brugt dit nuværende høreapparat i de seneste to uger. Hvor mange timer brugte du dit høreapparat på en gennemsnitlig dag?
+
+The answer is on a discrete scale from 1-5, 5 being the best.
+
+
+
+### 2.4.2 Overview
+We plot the answers, and see that most subject gave high answers.
+```{r}
+ggplot(melt(df_ioi, id.vars = c('record_id', 'redcap_event_name', "ioiha_dk_complete"))) + 
+  geom_bar(aes(x=value, y=..count.., fill=variable, color=redcap_event_name), stat = 'count', position = 'dodge') +
+  ggtitle("IOI-HA: Distribution of answers")
+
+
+ggplot(melt(df_ioi, id.vars = c('record_id', 'redcap_event_name', "ioiha_dk_complete"))) + 
+  geom_boxplot(aes(x=variable, y=as.numeric(value), fill=redcap_event_name)) +
+  ggtitle("IOI-HA: Distribution of answers")
+
+#ggplot(melted_ioi) + geom_bar(aes(x=variable, y=..count.. , fill=value), color = 'black', stat = 'count', position = 'dodge') + coord_flip() + ggtitle("IOI-HA: Distribution of answers")
+  
+```
+
+## 2.5 Tinnitus
+The tinnitus data contains information about which of the subjects have tinnitus, what their work background is, and how much noise they were exposed to.
+
+```{r}
+ggplot(melt(na.omit(df_thi_baseline[,c(1,2,4:28)]), id.vars = c('record_id', 'redcap_event_name'))) +
+  geom_bar(aes(x=variable, y=..count.., fill=value), stat = 'count') +
+  ggtitle("Tinnitus Questionaire Answers") + coord_flip()
+```
+
+
+### 2.5.2 Overview
+```{r}
+grid.arrange(
+  ggplot(df_tinnitus, aes(x=factor(1),fill=tinnitus)) + 
+    geom_bar() + ggtitle("Do you have tinnitus?") + coord_polar(theta = "y"),
+  ggplot(df_tinnitus, aes(x=factor(1),fill=noise_at_work)) + 
+    geom_bar() + ggtitle("Are you exposed to noise?") + coord_polar(theta = "y"),
+  ggplot(filter(df_tinnitus, noise_at_work=="Yes"), aes(x=factor(1),fill=noise_work_duration_1)) + 
+    geom_bar() + ggtitle("Duration of noise?") + coord_polar(theta = "y"),
+  ggplot(filter(df_tinnitus, noise_at_work=="Yes"), aes(x=factor(1),fill=noise_type_1)) + 
+    geom_bar() + ggtitle("Type of noise?") + coord_polar(theta = "y")
+  
+)
+
+ggplot(filter(df_tinnitus, noise_at_work=="Yes")) + 
+  geom_mosaic(aes(x=product(noise_work_duration_1, noise_work_intensity_1), fill=tinnitus)) + 
+  ggtitle("Intensity of noise/Duration of day")
+
+
+grid.arrange(
+  ggplot(filter(df_tinnitus, noise_at_work=="Yes"), aes(noise_industry_1)) +
+    geom_bar(aes(fill=noise_work_intensity_1), position = "fill") + coord_flip() + ggtitle("How intense is the noise you are exposed to?(by industry)"),
+  ggplot(filter(df_tinnitus, noise_at_work=="Yes"), aes(noise_industry_1)) +
+    geom_bar(aes(fill=tinnitus), position = "fill") + coord_flip() + ggtitle("Do you have tinnitus?(by industry)")
+)
+
+
+melted_tinnitus <- na.omit(melt(df_thi_baseline, id.vars = c('record_id', 'redcap_event_name', 'tinnitus', 'tinnitus_complete', "Score", "THI_grade")))
+ggplot(filter(melted_tinnitus, tinnitus=="Yes"), aes(x=variable)) + 
+  geom_bar(aes(fill=value)) + 
+  coord_flip() + ggtitle("Tinnitus questionaire results")
+```
+
+
+## 2.6 15D
+"The 15D is a generic, comprehensive (15-dimensional), self-administered instrument for measuring HRQoL among adults (age 16+ years). It combines the advantages of a profile and a preference-based, single index measure. A set of utility or preference weights is used to generate the 15D score (single index number) on a 0-1 scale. In most of the important properties the 15D compares favourably with other preference-based generic instruments."
+
+### 2.6.2 Overview
+```{r}
+melted_d <- melt(df_15d[,1:17], id.vars = c('record_id', 'redcap_event_name')) %>% 
+  na.omit()
+ggplot(melted_d) + geom_boxplot(aes(x=variable, y=value, fill=redcap_event_name), color = 'black') + coord_flip() + xlab("")
+```
+
+## 2.7 --?--
+
+## 2.8 Ha Type + use time
+Contains information about how much time the hearing aid is used 
+
+
+### 2.8.2 Overview
+We found inconsistecies from our data sheet, to the actual data in the csv-files. Therefore we cannot determine which HA's are which, since there are factorized as numbers instead of names. *NEED HELP!* 
+
+```{r}
+df_fitting_rationale_grouped <- df_fitting_rationale %>% 
+  filter(redcap_event_name != "besoeg3_arm_1") %>% 
+  group_by(record_id) %>% summarise_all(last)
+
+ggplot(df_fitting_rationale_grouped, aes(x=ha_manufactor, fill=ha_manufactor)) + 
+  geom_bar() + coord_flip() + xlab("Manufactor")+
+  geom_text(stat='count', aes(label=..count..))
+
+ggplot(df_fitting_rationale_grouped) + 
+  geom_bar(aes(x=ha_type, fill=ha_type)) + coord_flip() + 
+  geom_text(aes(x = ha_type, label = ..count..), stat='count')
+```
+
+We demonstrate how much the hearing aids are being used according to data from Ha-experience-use-time
+
+```{r}
+ggplot(df_ha_use) + geom_boxplot(aes(y=ha_usetime_hours_per_day, x=sex, color=sex))
+ggplot(df_ha_use, aes(x=ha_usetime_hours_per_day)) + geom_histogram(aes(color=""),fill="white",bins = 24) +
+                    geom_text(stat='bin',aes(label=..count..), color="#122312", bins=24)
+```
+
+And according the IoI questionaire:
+
+```{r}
+ggplot(df_ioi_usetime, aes(x=ioi_ha_1)) + geom_bar(fill="#008ba3") + geom_label(stat='count',aes(label=..count..), color="#008ba3") + xlab("Hours per day")
+```
+
+
+## 2.9 Audiograms
+Audiograms, from the left and right ear.
+
+### 2.9.2 Overview
+
+
+class: N = nonaudiobility, S = Loss of sensitivity
+```{r}
+melted_audiogram <- df_audiogram_left[,4:10] %>% melt()
+
+melted_grouped_audiogram <- melted_audiogram %>% group_by(Class, variable) %>% dplyr::summarise(value = mean(value))
+ggplot(melted_grouped_audiogram, aes(x=variable, y=value, group=Class, color=Class)) +
+  geom_point(stat='summary', fun.y=mean) +
+  stat_summary(fun.y=mean, geom="line") + scale_y_reverse() + 
+  xlab("Frequecy (hz)") + ylab("Sound Threshold  (dB)")
+
+
+sort_class_severity <- df_audiogram[,4:10] %>% melt() %>% group_by(Class, variable) %>% dplyr::summarise(value = mean(value)) %>% group_by(Class) %>% summarise(value=mean(value*value))
+
+sort_class_severity[order(sort_class_severity$value),]
+```
+
+```{r}
+ggplot(df_audiogram_left, aes(x=Class)) +
+  geom_bar(fill="#d2d3d2") + 
+  geom_text(stat='count', aes(label=..count..), color="#242622", position = 'dodge')
+```
+
+
+## 2.10 Merges
+Comparing two datasets
+### 2.10.1 Use time
+
+We attempt to group observations based on hours of hearing aid use per day. We group them into *very low*(<1), *low*(<=4 hours), *medium*(<=8 hours) and *high*(<=24 hours) levels.
+```{r}
+df_use_group <- df_ha_use %>% filter(!is.na(ha_usetime_hours_per_day)) %>% mutate(use_group = cut(x=ha_usetime_hours_per_day, breaks=c(0,1,4,8,24), labels = c("Very low(<1)","Low(1-4)", "Medium(4-8)", "High(>8)"), include.lowest = TRUE))
+```
+
+If we compare the results from the "HA_experience_use-time" to the ones from the IOI, we see that the times from the first has more subjects answering that they use their hearing aid less than an hour. The overall shape is mostly similar.
+```{r}
+ggplot(df_ioi_usetime, aes(x=ioi_ha_1)) + geom_bar(fill="#008ba3") +
+  geom_label(stat='count',aes(label=..count..), color="#008ba3") + xlab("Hours per day [IOI]")
+
+ggplot(df_use_group, aes(x=use_group)) + geom_bar(fill="#008ba3") +
+  geom_label(stat='count',aes(label=..count..), color="#008ba3") + xlab("Hours per day [HA Experience]")
+
+```
+
+### 2.10.2 Time between check and SSQ ratings
+*Note: much uncertainty such wow*
+
+```{r}
+#ssq_diff_time <- merge(ssq_diff, df_time_between, by=c("record_id", "redcap_event_name"))
+#melted_ssq_diff_time <- melt(ssq_diff_time[,c(1:19,23)], id.vars = c("record_id", "interval","redcap_event_name"))
+#ggplot(melted_ssq_diff_time, aes(x = interval, y=value, color=variable)) + geom_smooth(se = FALSE)
+```
+
+## Tinnitus and SSQ
+```{r}
+d1 <- df_thi_baseline
+d2 <- filter(df_ssq, redcap_event_name=="baseline_arm_1")
+```
+people who report having difficulty understanding ---- because of tinnitus, have generally lower ssq scores.
+```{r}
+data <- filter(merge(d1,d2,c('record_id','redcap_event_name')), tinnitus_complete == "Complete")
+data
+ggplot(melt(data[,c(1,5,48:50)], id.vars = c("record_id", "tinnitus_understanding"))) + geom_boxplot(aes(x=variable, y=value, fill=tinnitus_understanding))
+```
+
+## Having tinnitus vs SSQ
+```{r}
+data <- merge(d1,d2,c('record_id','redcap_event_name'))
+data
+ggplot(melt(data[,c(1,3,48:50)], id.vars = c("record_id", "tinnitus"))) + geom_boxplot(aes(x=variable, y=value, fill=tinnitus))
+```
+
+# x.x.x Age and SSQ
+
+We see that age has minimal to no effect and SSQ ratings. Especially when taking the correlogram into account.
+
+```{r}
+#melted_ssq <- melt(a[,c(1, 5, 13:29)], id.vars = c('record_id', 'age'), na.rm = TRUE)
+
+#ggplot(melted_ssq) + geom_smooth(aes(x = age, y = value, color = variable))
+
+```
+

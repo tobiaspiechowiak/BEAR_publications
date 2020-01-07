@@ -1,0 +1,138 @@
+---
+title: "4.5 Perceived Loss/Benefit"
+output: html_document
+---
+
+#4.5 Perceived Loss and Benefit
+We start by looking a the perceived loss and its effect on usage.
+
+```{r}
+
+#How many are in each category of 15D Hear
+
+ggplot(t3.data.15d, aes(x=fifteen_d_3_hear)) + geom_bar() + 
+  geom_text(stat="count", aes(label=..count..))
+
+#How have the 3rd group of 15D answering on the SSQ
+
+FDHear.SQQ <- filter(t3.data.ssq,redcap_event_name == "baseline_arm_1" & record_id %in% filter(t3.data.15d, redcap_event_name == "baseline_arm_1" & fifteen_d_3_hear == 3)$record_id)
+
+ggplot(melt(FDHear.SQQ, id.vars = c(1,2,15:21)), aes(x=variable, y=value)) + geom_boxplot()
+
+```
+```{r}
+# How do each 15D hear group answer the ssq (Using the 15D hear categories as a cluster)
+
+FDhear.SSQ.clust <- merge(filter(t3.data.ssq,redcap_event_name == "baseline_arm_1"), t3.data.15d [,c(1,2,5)], by=c("redcap_event_name","record_id"))
+
+ggplot(melt(filter(FDhear.SSQ.clust, fifteen_d_3_hear < 5), id.vars = c(1,2:15,19:22)), aes(x=variable, y=value, fill=fifteen_d_3_hear)) + geom_boxplot() + 
+  scale_fill_brewer("15D Hearing",palette="RdYlBu", direction= -1, labels=c("Normal hearing","Slight difficulties hearing speech","Clear difficulties hearing speech","Great difficulties hearing speech \n (almost deaf)")) +
+  scale_x_discrete(labels=c("Speech","Space","Sound")) +
+  xlab("SSQ domains") + ylab("Score (mean)") +
+  ggtitle("Correlation between 15D hearing scores and SSQ scores") + theme_minimal()
+
+ggplot(FDhear.SSQ.clust,aes(x=fifteen_d_3_hear, fill=IsT1DrawerUser)) + geom_bar(position="fill") 
+
+```
+
+```{r}
+# What is the use time of each 15D hear group?
+
+FDhear.usetime <- merge(filter(t3.data.ssq,redcap_event_name == "baseline_arm_1"), t3.data.15d [,c(1,2,5)], by=c("redcap_event_name","record_id")) %>% merge(df_ha_use[,c(1,2,7)], by=c("redcap_event_name","record_id"))
+
+grid.arrange(
+  ggplot(filter(FDhear.usetime, fifteen_d_3_hear < 5 & ha_usetime_hours_per_day < 18),aes(x=fifteen_d_3_hear, y=ha_usetime_hours_per_day)) + geom_boxplot(aes(fill = fifteen_d_3_hear)) +
+    scale_fill_brewer("15D Hearing",palette="RdYlBu", direction= -1, labels=c("Normal hearing","Slight difficulties","Clear difficulties","Great difficulties\n (almost deaf)")) +
+    xlab("15D Hearing answer") + ylab("Use time (hours per day)") + ggtitle("HA usage across each group of \n15D Hearing answer") +
+    theme_minimal(),
+    
+  ggplot(filter(FDhear.usetime, fifteen_d_3_hear < 5 & ha_usetime_hours_per_day < 18),aes(x=fifteen_d_3_hear, fill=IsT1DrawerUser)) + geom_bar(position="fill", color="black") +
+    scale_fill_manual("Drawer user",values=c("white","#FDAE61")) +
+      theme_minimal() + theme(legend.position = "none") + ylab("Count (%)") + scale_y_continuous(labels = percent, limits = c(0,0.3)) +
+      ggtitle("Percentage of drawer users")+ xlab("15D Hearing answer"),
+  ncol=2
+)
+
+```
+
+```{r}
+# Lets try to look at those who have a "bad" audiogram class, but percieve themselves as hearing well.
+
+FDhear.audiogram <- merge(filter(t3.data.ssq,redcap_event_name == "baseline_arm_1"), t3.data.15d [,c(1,2,5)], by=c("redcap_event_name","record_id")) %>% merge(df_ha_use[,c(1,2,7)], by=c("redcap_event_name","record_id")) %>% merge(df_audiogram[,c(9,10)], by=c("record_id"))
+
+#Overall split of audiogram class across self percieved hearing 15D hear.
+ggplot(FDhear.audiogram, aes(x=fifteen_d_3_hear, fill=Class)) + geom_bar(position="fill")
+
+
+ggplot(filter(FDhear.audiogram, Class >"N3" & fifteen_d_3_hear < 3), aes(x=ha_usetime_hours_per_day, fill=Class)) + geom_histogram(bins = 25) + xlim(-1,23)
+
+
+```
+
+```{r, fig.width=10, fig.height= 6}
+
+SPHI.ssq <- t3.data.ssq.no.na %>% filter(redcap_event_name == "baseline_arm_1")
+
+SPHI.ssq <- SPHI.ssq %>% filter(!is.na(ssq_speech_mean) & !is.na(ssq_space_mean) & !is.na(ssq_sound_mean))
+
+SPHI.ssq <- SPHI.ssq[!duplicated(SPHI.ssq$record_id),]
+
+SPHI.ssq <- SPHI.ssq %>% merge(df_ha_use[,c(1,2,7)], by=c("record_id","redcap_event_name")) %>% filter(ha_usetime_hours_per_day < 16)
+  
+# Clustering
+set.seed(40)
+clusters <- kmeans(SPHI.ssq[,3:14], 5)
+
+# Save the cluster number in the dataset
+SPHI.ssq$Cluster <- as.factor(clusters$cluster)
+
+# Sorting
+sorted <- SPHI.ssq %>% group_by(Cluster) %>% summarise(mean = mean(c(ssq_speech_mean, ssq_space_mean, ssq_sound_mean)), n = n())
+
+sorted_borough <- sorted[order(sorted$mean),]$Cluster
+
+SPHI.ssq$Cluster <- factor(SPHI.ssq$Cluster, levels = sorted_borough, ordered = TRUE)
+
+
+SPHI.ssq[,c("Speech","Space","Sound","Use_time")] <- scale(SPHI.ssq[,c(16:18,22)])
+
+melt.SPHI.ssq <- melt(SPHI.ssq[,c(1,16:18,23)], id.vars=c("record_id","Cluster")) 
+
+melt.SPHI.ssq.scaled <- melt(SPHI.ssq[,c(1,23,24:27)], id.vars=c("record_id","Cluster")) 
+
+grid.arrange(
+  ggplot(SPHI.ssq, aes(y= ha_usetime_hours_per_day, x= Cluster, fill= Cluster)) + geom_boxplot() +
+    scale_fill_brewer(palette="RdYlBu") + 
+    theme_minimal() + ylab("Hours of use per day")+
+    ggtitle("Hours of use per day"),
+  
+  ggplot(melt.SPHI.ssq, aes(x=Cluster, y= value, fill= variable)) + geom_boxplot() + 
+    scale_fill_brewer("SQQ domain", palette="RdYlBu", labels=c("Speech","Space","Sound")) +
+    theme_minimal() + ylab("Score")+
+    ggtitle("SSQ score in each domain"),
+  
+  ggplot(melt.SPHI.ssq.scaled, aes(x=Cluster, group=variable, y= value, color= variable)) + 
+    stat_summary(fun.y= mean, geom="line", size=1) + 
+    theme_minimal() + ylab("Value (relative)") + 
+    scale_color_manual("Variable",values=col5[c(1,2,3,5)]) +
+    ggtitle("SSQ domains and use-time relative to each other"),
+  
+  ggplot(SPHI.ssq, aes(x= Cluster, fill= IsT1DrawerUser)) + geom_bar(position="fill", color="black") +
+    scale_fill_manual("Drawer user",values=c("white","#FDAE61")) +
+    theme_minimal() + theme(legend.position = "none") + ylab("Count (%)") + scale_y_continuous(labels = percent, limits = c(0,0.3)) +
+    ggtitle("Percentage of drawer users"),
+  ncol=2
+
+)
+
+
+
+  
+```
+
+```{r}
+#Motivation
+ggplot(df_motivation, aes(x=motivation_line_1_ver2)) + geom_bar()
+
+```
+

@@ -1,0 +1,108 @@
+---
+title: "Low Benefit"
+output: html_notebook
+---
+#Low use time
+```{r}
+low_benefit.time <- filter(df_ha_use, ha_usetime_hours_per_day < 3)
+low_benefit.time.ioi <- filter(df_ioi, ioi_ha_1 < 3)
+```
+
+#Low user satisfaction
+```{r}
+low_benefit.satisfaction.ioi <- filter(df_ioi, ioi_ha_4<3)
+low_benefit.satisfaction.ssq <- filter(df_ssq_diff_group, ioi_ha_4<3)
+```
+
+
+#Severe hearing loss
+```{r}
+low_benefit.hear <- filter(df_audiogram, !Class %in% c("N1", "N2", "S1")) %>% select(record_id, Class, Side)
+low_benefit.hear %>% group_by(record_id) %>% summarise(n())
+
+count(df_audiogram, Class, Side) %>% ggplot() + geom_col(aes(x=Class, y=n, fill=Side), position = "dodge")
+
+count(low_benefit.hear, Class, Side) %>% group_by(Class) %>% summarise(Amount = mean(n))
+
+
+```
+
+## Deciding severity of hearing loss
+```{r}
+sort_class_severity <- df_audiogram[,4:10] %>% melt() %>% group_by(Class, variable) %>% dplyr::summarise(value = mean(value)) %>% group_by(Class) %>% summarise(value=mean(value*value))
+
+sorted_classes <- sort_class_severity[order(sort_class_severity$value),]$Class
+
+df_audiogram$Class <- factor(df_audiogram$Class, levels = sorted_classes, ordered = TRUE)
+```
+We order the class severity by taking the mean of the squared values of the tone thresholds. This makes sense becuase it emphasises the types of hearing loss that have the highest drops on only some frequencies.
+We have decided that moderate loss on all frequencies, is less severe than major loss on some frequencies.
+
+## Getting the worst hearing loss for each record_id
+```{r}
+df_user_worstear <- df_audiogram %>% group_by(record_id) %>% summarise(class=max(Class))
+```
+
+
+# Co-Occurence of hearing loss class left/right ear
+```{r}
+df_pta_class <- spread(df_audiogram[,c(1,2,9,10,11)], Side, Class)
+
+ggplot(df_pta_class, aes(x=left, y=right, fill=..count..)) + geom_bin2d() + stat_bin2d(geom="text",aes(label=..count..),  stat="count") + guides(fill=guide_legend(title = "Count")) + scale_fill_gradient(na.value="white", low="#eaefff", high = "blue")
+```
+
+We see in this graph that only very rarely does a subject have a severe hearing loss on one ear and a minor on the other. For the most part the hearing loss goes hand in hand. With this in mind, 
+
+
+#-------====-------
+
+##1- low usage
+###Data
+###Tree
+###PCA
+###Linear Regression
+###Clustering
+###Boosting
+##2- low user satisfaction
+
+##3- severe disability and low usage
+###Data
+```{r}
+low_benefit.hear_time <- df_user_worstear %>% merge(df_audiogram, by = "record_id") %>% merge(df_ha_use, by=("record_id")) %>% filter(class > "S1" & ha_usetime_hours_per_day < 3)
+
+ggplot(mutate(df_ha_use, IsDrawerUser=factor(record_id %in% low_benefit.hear_time$record_id))) + 
+  geom_bar(aes(x=1,fill=IsDrawerUser))
+
+
+t3.data.ssq <- df_ssq %>% mutate(IsDrawerUser=factor(record_id %in% low_benefit.hear_time$record_id))
+t3.data.thi <- df_thi_baseline %>% mutate(IsDrawerUser=factor(record_id %in% low_benefit.hear_time$record_id))
+t3.data.15d <- df_15d_base %>% mutate(IsDrawerUser=factor(record_id %in% low_benefit.hear_time$record_id))
+```
+
+###Tree
+```{r}
+t3.data.ssq <- df_ssq %>% mutate(IsDrawerUser=factor(record_id %in% low_benefit.hear_time$record_id))
+
+plot(ctree(data=t3.data.ssq, formula = IsDrawerUser ~ ssq_speech_mean + ssq_space_mean + ssq_sound_mean + redcap_event_name))
+
+t3.pca <- prcomp(na.omit(t3.data.ssq[,c(3:14, 16:18)]), center = TRUE,
+                  scale. = TRUE)
+summary(t3.pca)
+
+t3.pcadf <- data.frame(t3.pca$x)
+t3.pcadf$record_id <- na.omit(t3.data.ssq[,c(1,3:18)])$record_id
+
+plot(ctree(data=merge(t3.data.ssq, t3.pcadf, by="record_id"), formula = IsDrawerUser ~ PC1+PC2+PC3+PC4))
+
+```
+
+###Boosting
+```{r}
+# ssq
+xgb.doit(data = na.omit(t3.data.ssq[,c(3:19,21:24)]), formula = IsDrawerUser ~ .)
+# tinnitus
+xgb.doit(data = na.omit(t3.data.thi[,c(3:28,30)]), formula = IsDrawerUser ~ .)
+# 15d
+xgb.doit(data = na.omit(t3.data.15d[,c(3:17,19)]), formula = IsDrawerUser ~ .)
+```
+

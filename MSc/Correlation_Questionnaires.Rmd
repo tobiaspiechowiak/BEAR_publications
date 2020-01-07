@@ -1,0 +1,74 @@
+---
+title: "Correlation between Questionnaires"
+output: html_notebook
+---
+
+Load data:
+
+```{r}
+
+source('setup.R')
+
+```
+
+Clean up the data
+
+
+```{r}
+
+tmp <- t3.data.15d %>% merge(t3.data.ssq,by = c('record_id','redcap_event_name')) %>% merge(df_ioi, c('record_id','redcap_event_name')) %>% merge(df_motivation, c('record_id'))
+
+tmp <- tmp[,-c(1,2,18,19)]
+tmp <- tmp[,-c(28,29,30,31,32,33)]
+tmp <- tmp[,-c(length(tmp)-5, length(tmp)-6)]
+
+tmp <- sapply(tmp, as.numeric)
+
+#make NaN to average value
+
+for(i in 1:ncol(tmp)){
+  tmp[is.na(tmp[,i]), i] <- mean(tmp[,i], na.rm = TRUE)
+}
+
+```
+
+
+Now plot correlation matrix: 
+
+```{r}
+library('corrplot')
+data.cor <- cor(tmp, use = 'complete.obs')
+png('CorQuestionnaires.png', width = 1500, height = 1500)
+corrplot(data.cor, method = 'circle')
+dev.off()
+
+```
+
+
+Now we try to find the difference 15D between first and second visit for ha_own = 0
+
+```{r}
+
+df_ssq_ioi_2 <- read.csv(paste(datafolder,"SSQ12_IOI-HA_visit_2.csv",sep="/"))
+df_ssq_ioi_1 <- read.csv(paste(datafolder,"SSQ12_IOI-HA_baseline.csv",sep="/"))
+
+
+df_ssq_ioi_1 <- df_ssq_ioi_1[(df_ssq_ioi_1$record_id %in% df_ssq_ioi_2$record_id), ]
+
+df_ssq_ioi_1 <- df_ssq_ioi_1[,-c(3)]
+
+difference <- df_ssq_ioi_2[,3:23] - df_ssq_ioi_1[,3:23]
+
+#difference <- na.omit(difference)
+
+#for(i in 1:ncol(difference)){
+#  difference[is.na(difference[,i]), i] <- mean(difference[,i], na.rm = TRUE)
+#}
+
+
+```
+
+
+
+
+

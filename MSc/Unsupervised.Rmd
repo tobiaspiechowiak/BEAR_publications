@@ -1,0 +1,71 @@
+---
+title: "Unsupervised Learning"
+output: html_notebook
+---
+
+```{r}
+#install.packages("devtools")
+#install.packages('VIM')
+
+#library(devtools)
+library(ggbiplot)
+library(VIM)
+```
+
+
+
+
+>Hvad kan vi bruge kmeans på? Og PCA?
+Hvordan fortolker vi PCA? Hvad kan vi bruge det til?
+Er der en god klassifikations metode til den type data vi har?
+
+
+
+In this notebook we will look at some methods for unsupervised learning
+
+- PCA
+- k-means
+- 
+- 
+
+# PCA
+
+## test on audiograms
+
+```{r}
+aud.pca <- df_audiogram_left[,4:9]
+
+aud.pca <- prcomp(aud.pca, center = TRUE,
+                  scale. = TRUE)
+summary(aud.pca)
+print(aud.pca)
+```
+
+```{r}
+ggbiplot(aud.pca, ellipse = TRUE, groups = df_audiogram_left$Class)
+```
+
+What 
+
+ssq?
+
+```{r}
+ssq.pca <- na.omit(df_ssq_base[,3:19])
+
+ssq.pca <- prcomp(ssq.pca, center = TRUE,
+                  scale. = TRUE)
+summary(ssq.pca)
+print(ssq.pca)
+
+aggr(df_ssq_base)
+```
+
+
+```{r}
+ggbiplot(ssq.pca, ellipse = TRUE, groups = ssq)
+
+plot(ssq.pca, fill=)
+```
+
+
+# K-Means

@@ -1,0 +1,373 @@
+---
+title: "4.6 Machine Learning"
+output: html_notebook
+---
+
+```{r, setup_libs}
+requireLibrary("randomForest")
+requireLibrary("e1071")
+requireLibrary("factoextra")
+requireLibrary("psych")
+```
+
+
+# {.tabset}
+## Import Data
+
+ssq
+15d
+-ioi meget få observationer ved baseline, ioi_ha_1 giver mere eller mindre svaret (om person er drawer user), så ikke brug for prediction
+-thi en masse factorer, hvor resten af dataen er tilnærmelsesvis numerisk
+```{r}
+kitchen_sink <- t3.data.ssq.no.na %>% filter(redcap_event_name=="baseline_arm_1") %>% select(record_id, starts_with("ssq_"), -ends_with("mean")) %>% 
+  merge(
+    t3.data.15d.no.na %>% filter(redcap_event_name=="baseline_arm_1") %>% select(record_id, starts_with("fifteen_d_"), IsT1DrawerUser) %>% mutate_if(is.ordered, as.numeric), 
+    by="record_id"
+  ) %>% 
+  merge( na.locf(df_ha_use[,c("record_id","ha_usetime_hours_per_day")]),by="record_id") %>% mutate_if(is.ordered, function(x)as.numeric(x)*25-25)
+```
+
+## Random Forest
+### Kitchen sink approach
+```{r}
+ksa.all.data <- kitchen_sink
+
+ksa.all.tran <- sample_frac(ksa.all.data, 0.7)                                  # Sample 70% of data for training
+ksa.all.test <- ksa.all.data[!row.names(ksa.all.data) %in% row.names(ksa.all.tran),] 
+```
+
+#### Train Model
+
+```{r}
+trControl <- trainControl(method = "cv",   # cv=cross validation
+                          number = 10,     # number = the amount of "folds" in k-fold crossvalidation
+                          search = "grid") # search = the search method, an alternative is "random". Grid is exhaustive, random is faster
+```
+
+
+```{r}
+all_fit_pls.cls <- train(IsT1DrawerUser~.-ha_usetime_hours_per_day-record_id,
+             data=ksa.all.tran, 
+             method = "pls",
+             trControl = trControl,
+             metric="Accuracy")
+print(all_fit_pls.cls)
+```
+
+
+```{r}
+all_fit_rf.cls <- train(IsT1DrawerUser~.-ha_usetime_hours_per_day-record_id,
+             data=ksa.all.tran, 
+             method = "rf",
+             trControl = trControl,
+             importance = TRUE,
+             metric="Kappa")
+print(all_fit_rf.cls)
+
+```
+
+
+```{r}
+all_fit_lmfs.num <- train(ha_usetime_hours_per_day~.,
+             data=data.frame(ksa.all.tran[,c(2:28,30)]),
+             method = "leapForward",
+             importance = T,
+             trControl = trControl)
+print(all_fit_lmfs.num)
+```
+
+
+```{r}
+all_fit_rf.num <- train(ha_usetime_hours_per_day~.-IsT1DrawerUser-record_id,
+             data=ksa.all.tran, 
+             method = "rf",
+             importance = T,
+             trControl = trControl)
+
+print(all_fit_rf.num)
+```
+
+
+
+#### Evaluate the model
+
+```{r}
+prediction <- predict(all_fit_pls.cls, ksa.all.test)
+confusionMatrix(prediction, ksa.all.test$IsT1DrawerUser)
+caret::varImp(all_fit_pls.cls)
+```
+
+
+```{r}
+prediction <- predict(all_fit_rf.cls, ksa.all.test)
+confusionMatrix(prediction, ksa.all.test$IsT1DrawerUser)
+caret::varImp(all_fit_rf.cls)
+```
+
+
+```{r}
+prediction <- predict(all_fit_lmfs.num, ksa.all.test)
+caret::varImp(all_fit_lmfs.num)
+plm<-ggplot(data.frame(error=prediction-ksa.all.test$ha_usetime_hours_per_day), aes(x=error)) + geom_histogram(fill=colors2[1]) + ggtitle("Linear Model(Forward Selection), SSQ and 15D") + theme_light() + labs(x="Error in hours", y="Count")
+
+t.test(prediction, ksa.all.test$ha_usetime_hours_per_day, paired=T, alternative="l")
+```
+
+
+```{r}
+prediction <- predict(all_fit_rf.num, ksa.all.test)
+caret::varImp(all_fit_rf.num)
+prf<-ggplot(data.frame(error=prediction-ksa.all.test$ha_usetime_hours_per_day), aes(x=error)) + geom_histogram(fill=colors2[1]) + ggtitle("Random Forest, SSQ and 15D") + theme_light() + labs(x="Error in hours", y="Count")
+
+t.test(prediction, ksa.all.test$ha_usetime_hours_per_day, paired=T, alternative="l")
+```
+
+```{r, fig.width=10, fig.asp=0.4}
+grid.arrange(plm,prf,ncol=2)
+```
+
+
+### Principal Component Analysis approach
+
+#### data
+
+##### SSQ
+```{r}
+d1 <- t3.diff.ssq.no.na %>% filter(redcap_event_name == "baseline_arm_1") %>% select(record_id, starts_with("ssq_")) %>%
+  merge( 
+    na.omit(df_ha_use[,c("record_id","ha_usetime_hours_per_day","ha_use_time")])
+    ,by="record_id")
+pca.ssq.fit <- prcomp(d1[,2:18])
+
+fviz_eig(pca.ssq.fit)
+
+ssq.cor <- cor(d1[,c(2:13, 17,18)], use = 'complete.obs')
+nr.factors <- fa.parallel(ssq.cor, n.obs = 500, fa = 'fa')
+nr.factors
+fa.ssq <- fa(ssq.cor, nfactors = 4, rotate = 'varimax', fm = 'pa',SMC = FALSE, n.obs = 500)
+fa.ssq
+
+
+dat <- data.frame(fa.ssq$weights)
+dat$x <- 1:nrow(dat)
+dat$fact <- factor(rownames(dat))
+dat %>% melt(id.vars = c("fact","x")) %>% filter(value > 0.1) %>% group_by(variable) %>%  mutate(y=nrow(.)-mean(x)+1) %>% 
+  ggplot() + 
+  geom_segment(aes(y=fact, yend=y, x=1, xend=2, alpha=value, color=variable)) + 
+  geom_label(aes(y=y, x=2, label=variable, color=variable)) +
+  geom_label(aes(y=fact, x=1, label=round(value, 2), color=variable)) +
+  theme_classic() + theme(legend.position = "none", axis.text.x = element_blank()) + labs(y="Variable", x="Weight with PA")
+fa.diagram(fa.ssq, simple = T)
+```
+
+##### IOI
+```{r}
+dioi <- df_ioi.no.na %>% select(record_id, starts_with("ioi_")) %>% 
+  merge( na.locf(df_ha_use[,c("record_id","ha_usetime_hours_per_day")]),by="record_id") %>% mutate_if(is.ordered, function(x)as.numeric(x)*25-25)
+
+pca.ioi.fit <- prcomp(dioi %>% select(-record_id))
+
+fviz_eig(pca.ioi.fit)
+fviz_famd(pca.ioi.fit)
+
+ssq.cor <- cor(dioi %>% select(-record_id), use = 'complete.obs')
+nr.factors <- fa.parallel(ssq.cor, n.obs = 2100, fa = 'fa')
+nr.factors
+fa.ssq <- fa(ssq.cor, nfactors = 3, rotate = 'varimax', fm = 'pa',SMC = FALSE, n.obs = 2100)
+fa.ssq
+fa.diagram(fa.ssq, simple = T)
+data.frame(fa.ssq)
+dat <- data.frame(fa.ssq$weights)
+dat$x <- 1:nrow(dat)
+dat$fact <- factor(rownames(dat))
+dat %>% melt(id.vars = c("fact","x")) %>% filter(value > 0) %>% group_by(variable) %>%  mutate(y=nrow(.)-mean(x)+1) %>% 
+  ggplot() + 
+  geom_segment(aes(y=fact, yend=y, x=1, xend=2, alpha=value, color=variable)) + 
+  geom_label(aes(y=y, x=2, label=variable, color=variable)) +
+  geom_label(aes(y=fact, x=1, label=round(value, 2), color=variable)) +
+  theme_classic() + theme(legend.position = "none", axis.text.x = element_blank()) + labs(y="Variable", x="Weight with PA")
+
+corrgram(dioi, )
+```
+
+##### All
+```{r}
+kitchen_sink <- t3.data.ssq.no.na %>% filter(redcap_event_name=="baseline_arm_1") %>% select(record_id, starts_with("ssq_"), -ends_with("mean")) %>% 
+  merge(
+    t3.data.15d.no.na %>% filter(redcap_event_name=="baseline_arm_1") %>% select(record_id, starts_with("fifteen_d_"), IsT1DrawerUser) %>% mutate_if(is.ordered, as.numeric), 
+    by="record_id"
+  ) %>% 
+  merge( na.locf(df_ha_use.no.na %>% select(record_id, age, ha_use_time, ha_usetime_hours_per_day)),by="record_id") %>% mutate_if(is.ordered, function(x)as.numeric(x)*25-25)
+
+pca.all.fit <- prcomp(kitchen_sink %>% select(-record_id, -IsT1DrawerUser, -ha_usetime_hours_per_day), scale. = T)
+fviz_eig(pca.all.fit)
+
+ssq.cor <- cor(kitchen_sink %>% select(-record_id, -IsT1DrawerUser), use = 'complete.obs')
+nr.factors <- fa.parallel(ssq.cor, n.obs = 1700, fa = 'fa')
+
+fa.ssq <- fa(ssq.cor, nfactors = 7, rotate = 'varimax', fm = 'pa',SMC = FALSE, n.obs = 1700)
+```
+
+
+```{r, fig.width=12}
+fa.diagram(fa.ssq, simple = F)
+```
+
+
+```{r}
+pca.all.data <- kitchen_sink %>% select(ha_usetime_hours_per_day) %>% cbind(data.frame(pca.all.fit$x[,1:6]))
+
+pca.all.tran <- sample_frac(pca.all.data, 0.7)                                  # Sample 70% of data for training
+pca.all.test <- pca.all.data[!row.names(pca.all.data) %in% row.names(pca.all.tran),] # Use the rest for test
+```
+
+#### training
+##### All
+```{r}
+trControl <- trainControl(method = "cv",   # cv=cross validation
+                          number = 10,     # number = the amount of "folds" in k-fold crossvalidation
+                          search = "grid") # search = the search method, an alternative is "random". Grid is exhaustive, random is faster
+
+all_fit_lmfs <- train(ha_usetime_hours_per_day~.,
+             data=pca.all.tran, 
+             method = "leapForward",
+             tuneGrid = expand.grid(nvmax = 2:6),
+             trControl = trControl)
+
+all_fit_rf <- train(ha_usetime_hours_per_day~.,
+             data=pca.all.tran, 
+             method = "rf",
+             importance = T,
+             trControl = trControl)
+
+print(all_fit_lmfs)
+print(all_fit_rf)
+```
+
+#### Testing
+##### All
+```{r fig.width=10, fig.asp=0.4}
+predictions <- predict(all_fit_lmfs, pca.all.test)
+pcalm <- ggplot(data.frame(error=predictions-pca.all.test$ha_usetime_hours_per_day), aes(x=error)) + geom_histogram(fill=colors2[1]) + ggtitle("Linear Model(Forward Selection), PCA(SSQ and 15D)") + theme_light() + labs(x="Error in hours", y="Count")
+predictions <- predict(all_fit_rf, pca.all.test)
+pcarf <- ggplot(data.frame(error=predictions-pca.all.test$ha_usetime_hours_per_day), aes(x=error)) + geom_histogram(fill=colors2[1]) + ggtitle("Random Forest, PCA(SSQ and 15D)") + theme_light() + labs(x="Error in hours", y="Count")
+
+grid.arrange(
+  pcalm,
+  pcarf,
+  ncol=2
+)
+
+caret::varImp(all_fit_lmfs)
+caret::varImp(all_fit_rf)
+```
+
+```{r, fig.asp=0.5, fig.width=12}
+load <- data.frame(pca.all.fit$rotation)[,1:6]
+load$name <- rownames(load)
+data <- load %>% melt(id.vars="name") %>% mutate_if(is.numeric, function(x)ifelse(abs(x)<0.15, 0, x))
+#ggplot(data ) + geom_col(aes(y=value, x=variable, fill=name), position="dodge") + theme(legend.position = "bottom")
+#ggplot(data ) + geom_col(aes(y=value, fill=variable, x=name), position="dodge") + theme(axis.text.x = element_text(angle=90))
+ggplot(data ) + geom_col(aes(y=value, fill=variable, x=name), color=rgb(0,0,0,0.5))+ theme_light() + theme(axis.text.x = element_text(angle=90, vjust = 0.5)) + labs(fill="Component", x="Variable", y="Loading") + ggtitle("Loadings of Prinacipal Compenont Analysis") + scale_fill_brewer(palette = "RdYlBu")
+#ggplot(data ) + geom_bin2d(aes(fill=value, x=variable, y=name)) + scale_fill_continuous(type="viridis")
+```
+
+
+### It's just a tree
+Et træ, ligesom det tobias lavede, bare med pricipal components
+```{r}
+
+```
+
+
+### EFA
+#### 15d
+```{r}
+
+base.nona.15d <- t3.data.15d.no.na %>% filter(redcap_event_name == "baseline_arm_1")
+rownames(base.nona.15d) <- base.nona.15d$record_id
+base.nona.15d <- base.nona.15d %>% select(starts_with("fifteen_"))
+
+keys = make.keys(base.nona.15d,list(
+ Move = c('fifteen_d_1_move'),
+ Sight =c('fifteen_d_2_sight') ,
+ Hear =c('fifteen_d_3_hear'),
+ Breathe =c('fifteen_d_4_breathe' ),
+ Sleep = c('fifteen_d_5_sleep'),
+ Eat = c('fifteen_d_6_eat'),
+ Speak = c('fifteen_d_7_speak'),
+ Pee = c('fifteen_d_8_pee' ),
+ Activity = c('fifteen_d_9_activity'),
+ Mental =c( 'fifteen_d_10_mental'),
+ Unplesant = c( 'fifteen_d_11_unplesant'),
+ Depression = c('fifteen_d_12_depression'),
+ Stress = c('fifteen_d_13_stress' ) ,
+ Power = c('fifteen_d_14_power' ),
+ Sex = c('fifteen_d_15_sex' )
+))
+ 
+msq.scores = scoreItems(keys,base.nona.15d)
+efa.data = msq.scores$scores
+
+set.seed(123)
+parallel = fa.parallel(efa.data,
+ fm = 'ml',
+ fa = 'fa',
+ n.iter = 50,
+ SMC = TRUE,
+ quant = .95)
+
+obs = data.frame(parallel$fa.values)
+obs$type = c('Observed Data')
+obs$num = c(row.names(obs))
+obs$num = as.numeric(obs$num)
+colnames(obs) = c('eigenvalue', 'type', 'num')
+
+#Calculate quantiles for eigenvalues, but only store those from simulated CF model in percentile1
+percentile = apply(parallel$values,2,function(x) quantile(x,.95))
+min = as.numeric(nrow(obs))
+min = (4*min) - (min-1)
+max = as.numeric(nrow(obs))
+max = 4*max
+percentile1 = percentile[min:max]
+ 
+#Create data frame called "sim" with simulated eigenvalue data
+sim = data.frame(percentile1)
+sim$type = c('Simulated Data (95th %ile)')
+sim$num = c(row.names(obs))
+sim$num = as.numeric(sim$num)
+colnames(sim) = c('eigenvalue', 'type', 'num')
+ 
+#Merge the two data frames (obs and sim) together into data frame called eigendat
+eigendat = rbind(obs,sim)
+
+
+apatheme=theme_bw()+
+theme(panel.grid.major = element_blank(),
+panel.grid.minor = element_blank(),
+panel.background = element_blank(),
+panel.border = element_blank(),
+legend.title=element_blank(),
+legend.position=c(.7,.8),
+axis.line.x = element_line(color='black'),
+axis.line.y = element_line(color='black'))
+#Use data from eigendat. Map number of factors to x-axis, eigenvalue to y-axis, and give different data point shapes depending on whether eigenvalue is observed or simulated
+p = ggplot(eigendat, aes(x=num, y=eigenvalue, shape=type)) +
+#Add lines connecting data points
+geom_line()+
+#Add the data points.
+geom_point(size=4)+
+#Label the y-axis 'Eigenvalue'
+scale_y_continuous(name='Eigenvalue')+
+#Label the x-axis 'Factor Number', and ensure that it ranges from 1-max # of factors, increasing by one with each 'tick' mark.
+scale_x_continuous(name='Factor Number', breaks=min(eigendat$num):max(eigendat$num))+
+#Manually specify the different shapes to use for actual and simulated data, in this case, white and black circles.
+scale_shape_manual(values=c(16,1)) +
+#Add vertical line indicating parallel analysis suggested max # of factors to retain
+geom_vline(xintercept = parallel$nfact, linetype = 'dashed')+
+#Apply our apa-formatting theme
+apatheme
+#Call the plot. Looks pretty!
+p
+```
+

@@ -1,0 +1,148 @@
+---
+title: "XG Boost"
+output: html_notebook
+---
+
+```{r setup}
+
+
+source("setup.R")
+source("xgboost.R")
+```
+
+# doing it
+```{r}
+data <- read.csv(paste(datafolder, files[7], sep = "/" ), colClasses = c(rep('factor',4), "numeric", "factor", "numeric", "factor", "numeric","factor")) %>% 
+  filter(!is.na(ha_usetime_hours_per_day)) %>% 
+  mutate(use_group = cut(x=ha_usetime_hours_per_day, 
+                         breaks=c(0,1,4,8,24), 
+                         labels = 0:3,#c("Very low(<1)","Low(1-4)", "Medium(4-8)", "High(>8)"),
+                         include.lowest = TRUE))
+
+df_record_id_use_group <- data[,c(1,10)]
+
+data$sex <- factor(data$sex, levels=c(1,2), labels = c("Male", "Female"))
+data$own_ha <- factor(data$own_ha, levels=c(0, 1), labels=c("No", "Yes"))
+data$ha_number_of_ha <- factor(data$ha_number_of_ha, levels=c(1,2,3), labels = c("Both ears","Right ear","Left ear"))
+data$ha_dispencer <- factor(data$ha_dispencer, levels=c(1,2,3,4), labels = c("Høreklinikken, OUH","Audiologisk afdeling, Ålborg","Anden offentlig høreklinik", "Privat leverandør"))
+data$ha_manufactor <- NULL
+data$use_group <- as.integer(data$use_group)-1
+
+set.seed(2143)
+ind <- sample(2, nrow(data), replace = TRUE, prob = c(.7,.3))
+train <- data[ind == 1,c(3:4, 7:10)]
+test <- data[ind == 2,c(3:4, 7:10)]
+```
+
+## *one-hot encoding*
+```{r}
+
+form <- use_group ~ .-use_group-ha_usetime_hours_per_day
+train.m <- sparse.model.matrix(form, train)
+train_label <- na.omit(train)[,"use_group"]
+train_matrix <- xgb.DMatrix(data = as.matrix(train.m), label = train_label)# *(complains about unequal row sizes; cannot deal with missing values, hence the na.omit above)*
+
+test.m <- sparse.model.matrix(form, test)
+test_label <- na.omit(test)[,"use_group"]
+test_matrix <- xgb.DMatrix(data = as.matrix(test.m), label = test_label)
+
+```
+
+## *Parameters*
+```{r}
+nc <- length(unique(train_label))
+xgb_params <- list("objective" = "multi:softprob",
+                    "eval_metric" = "mlogloss",
+                    "num_class" = nc)
+
+watchlist <- list(train = train_matrix, test = test_matrix)
+```
+
+## *eXtreme Gradient Boosting Model*
+```{r}
+best_model <- xgb.train(params = xgb_params,
+                        data = train_matrix,
+                        nrounds = 100,
+                        watchlist = watchlist)
+```
+
+## *Plotting the error*
+```{r}
+e <- data.frame(best_model$evaluation_log)
+plot(e$iter, e$train_mlogloss, col="blue")
+lines(e$iter, e$test_mlogloss, col="green")
+
+ggplot(e, aes(x=iter)) + 
+  geom_point(aes(y=train_mlogloss), color = "blue") +
+  geom_line(aes(y=test_mlogloss), color = "green")
+```
+
+
+## *Importance*
+```{r}
+e[e$test_mlogloss == min(e$test_mlogloss),]
+imp <- xgb.importance(colnames(train_matrix), model = best_model)
+print(imp)
+xgb.ggplot.importance(imp)
+```
+
+## *Prediction and confusion matrix* - test data
+```{r}
+pred <- predict(best_model, newdata = test_matrix)
+pred <- matrix(pred, nrow = nc, ncol = length(pred)/nc) %>%
+  t() %>% 
+  data.frame() %>% 
+  mutate(label = test_label, max_prob = max.col(., "last")-1)
+
+head(pred)
+
+table(Prediction = pred$max_prob, Actual = pred$label)
+```
+
+## As a function
+See **xgboost.R**
+
+#Usetime grouped
+```{r}
+merge(df_ssq[,c(1,2,grepl("ssq_", colnames(df_ssq)))], df_ha_use[,c(1,2,7:9)], by = c("record_id","redcap_event_name")) %>% 
+  mutate(use_group = cut(x=ha_usetime_hours_per_day, 
+                         breaks=c(0,1,4,8,24), 
+                         #levels = c(0:3),
+                         labels = c("Very low(<1)","Low(1-4)", "Medium(4-8)", "High(>8)"),
+                         include.lowest = TRUE)) %>% 
+  na.omit %>% 
+  xgb.doit(formula = use_group ~ .-use_group-record_id-redcap_event_name-ha_usetime_hours_per_day)
+```
+
+# Use group, fittingrationale and audiograms
+```{r}
+merge(df_audiogram, filter(df_fitting_rationale, !is.null(fittingrationale))[,c(1,3)], by = c("record_id")) %>%
+  merge(df_use_group[,c(1,11)], by = c("record_id")) %>% 
+  na.omit %>%  
+  xgb.doit(formula = use_group ~ .-use_group-record_id)
+
+
+```
+
+# Baseline and follow up
+```{r, fig.width=12}
+a <- t3.data.thi %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+b <- t3.data.ssq %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+c <- t3.data.15d %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+```
+
+# Just baseline
+```{r, fig.width=12}
+a <- t3.data.thi %>% filter(redcap_event_name == "baseline_arm_1") %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+b <- t3.data.ssq %>% filter(redcap_event_name == "baseline_arm_1") %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+c <- t3.data.15d %>% filter(redcap_event_name == "baseline_arm_1") %>% na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+```
+
+# Combined data
+```{r, fig.width=12}
+d <- t3.data.thi %>% 
+  merge(t3.data.ssq, by=c("record_id", "redcap_event_name", "IsDrawerUser")) %>% 
+  merge(t3.data.15d, by=c("record_id", "redcap_event_name", "IsDrawerUser")) %>% 
+  na.omit %>% xgb.doit(formula = IsDrawerUser ~ . - record_id)
+```
+

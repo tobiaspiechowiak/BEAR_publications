@@ -1,0 +1,14 @@
+---
+title: "Poster"
+output: html_notebook
+---
+
+```{r}
+
+t3.everything <- mutate(t3.everything, t1 = ha_usetime_hours_per_day <= 3)
+
+ggplot(filter(t3.everything, !is.na(t1))) + geom_bar(aes(x = 1, fill=t1), position = "fill", width=.1)
+
+
+```
+

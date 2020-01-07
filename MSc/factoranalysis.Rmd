@@ -1,0 +1,53 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+requireLibrary('psych')
+requireLibrary("factoextra")
+```
+
+
+## SSQ
+```{r}
+ssq.cor <- cor(ssq_use_fil[3:14], use = 'complete.obs')
+
+nr.factors <- fa.parallel(ssq.cor, n.obs = 1500, fa = 'fa')
+
+nr.factors
+
+fa.ssq <- fa(ssq.cor, nfactors = 3, rotate = 'varimax', fm = 'pa',SMC = FALSE, n.obs = 1500)
+fa.ssq
+fa.diagram(fa.ssq, simple = FALSE)
+```
+
+```{r}
+# http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/118-principal-component-analysis-in-r-prcomp-vs-princomp/
+
+#install.packages("factoextra")
+#library(factoextra)
+
+
+
+fit <- prcomp(ssq_use_fil[3:14])
+fit
+# Scree plot
+  fviz_eig(fit)
+
+# access to the PCA results
+  eig.val <- get_eigenvalue(fit)
+  eig.val
+# Results for Variables
+  res.var <- get_pca_var(fit)
+  res.var$coord          # Coordinates
+  res.var$contrib        # Contributions to the PCs
+  res.var$cos2           # Quality of representation 
+  
+
+
+
+
+```
+
+## 

@@ -1,0 +1,156 @@
+---
+title: "Complex Listening"
+author: "malaue4"
+date: "2019 M04 15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+ssq_labels <- c("1. Hear person inspite of TV","4. Five people talking","10. Listen to person and TV","11. One on one\nnoisy environment","12. Speaking partner switch")
+names(ssq_labels) <- c("ssq_speech_q1","ssq_speech_q4","ssq_speech_q10","ssq_speech_q11","ssq_speech_q12")
+event_labels <- c("Baseline", "Followup")
+names(event_labels) <- c("baseline_arm_1", "besoeg2_arm_1")
+
+```
+
+# Low benefit in complex scenarios
+## In complex listening scenarios the benefit of using hearing aid is comparatively low
+
+In this, we investigate the theorem that hearing aids provide little benefit in complex listening situations such as multiple speakers at once, or switching from one speaker to the other.
+
+First we attempt to find data that describes complex listening situations, by looking at SSQ's. The questions most relevant to complex listening scenario's are in the speech category.
+
+```{r, fig.asp=0.5}
+ggplot(t3.data.ssq.no.na[,c(2,16:18)] %>% melt, aes(x=redcap_event_name, y=value, fill=variable)) + geom_boxplot() +
+  theme_minimal() + xlab("Visit") + ylab("Mean Response (higher is better)") + labs(fill="SSQ Category") +
+  scale_fill_manual(values=col3_red, labels=c("Speech Mean", "Space Mean", "Sound Mean")) + scale_x_discrete(labels=event_labels)
+```
+An overview of SSQ's(the means for each category), shows that the speech category being generally lower, in both baseline and followup, indicating that this is perceived to be the worst area for most subjects.
+
+```{r, fig.asp=0.5}
+ggplot(melt(t3.data.ssq.no.na[,2:7]), aes(x=redcap_event_name, fill=variable, y=value)) + geom_boxplot() +
+  theme_minimal() + labs(fill="Question", x="Visit") + ylab("Response (higher is better)") + scale_fill_manual(values=col5, labels=ssq_labels)+ scale_x_discrete(labels=event_labels)
+```
+
+Taking a closer look at the speech questions, we see a noticeable improvement from baseline to followup in all questions.
+
+```{r, fig.width=10, fig.asp=0.4}
+ggplot(t3.data.ssq.no.na[,2:7] %>% melt(), aes(fill=redcap_event_name, x=value)) +
+  geom_histogram(bins=10, position=position_dodge(width = 9), color="black") +
+  facet_grid(redcap_event_name ~ variable, labeller = labeller(variable=ssq_labels, redcap_event_name=event_labels)) + 
+  theme_minimal() + xlab("Response (higher is better)") + ylab("Amount of Responses") + theme(legend.position="None") + scale_fill_manual(values=colors2)
+```
+
+Taking a more detailed look at the distribution, we see some spikes in the data, with a common one (1,10,11) being at, or around, 50. This could imply a default response, as the situation in question can be hard to imagine in detail. Question 10 sees a large spike in responses of 0.
+
+```{r, fig.width=12, fig.asp=0.4}
+ssq.cut.label <- c("00-20: Not at all", "21-40", "41-60", "61-80", "81-100: Perfectly")
+complex.ssq <- data.frame(
+  record_id = t3.data.ssq.no.na$record_id,
+  redcap_event_name = t3.data.ssq.no.na$redcap_event_name,
+  ssq_speech_q1  = cut(x = t3.data.ssq.no.na$ssq_speech_q1, breaks = 5, labels = ssq.cut.label, ordered_result = TRUE),
+  ssq_speech_q4  = cut(x = t3.data.ssq.no.na$ssq_speech_q4, breaks = 5, labels = ssq.cut.label, ordered_result = TRUE),
+  ssq_speech_q10 = cut(x = t3.data.ssq.no.na$ssq_speech_q10, breaks = 5, labels = ssq.cut.label, ordered_result = TRUE),
+  ssq_speech_q11 = cut(x = t3.data.ssq.no.na$ssq_speech_q11, breaks = 5, labels = ssq.cut.label, ordered_result = TRUE),
+  ssq_speech_q12 = cut(x = t3.data.ssq.no.na$ssq_speech_q12, breaks = 5, labels = ssq.cut.label, ordered_result = TRUE)
+)
+
+
+ggplot(complex.ssq %>% merge(df_user_worstear[,c("record_id", "class")]) %>% melt(.,id.vars = c("record_id", "class", "redcap_event_name")), aes(x=class, fill=value)) + 
+  geom_bar(position="fill", color="black") + coord_flip() + 
+  facet_grid(redcap_event_name ~ variable, labeller = labeller(redcap_event_name=event_labels, variable=ssq_labels))  + 
+  theme_minimal() + xlab("Audiogram Class") + ylab("Proportion of Response (%)") + labs(fill="Score (grouped)") +  scale_fill_manual(values=col5) + theme(axis.text.x=element_blank())
+```
+
+If we look at the proportion of answers compared to audiogram class, we see a steady drop as hearing worsens. It should be noted that the worst hearing loss, N7, has very few observations.
+
+```{r}
+library('rpart')
+library('partykit')
+library('rpart.plot')
+dat <- merge(select(df_ioi, ioi_ha_7, record_id, redcap_event_name), complex.ssq, by=c("record_id","redcap_event_name")) %>% merge(df_user_worstear[,c("record_id", "class")])
+fi <- rpart(formula=ioi_ha_7 ~ ssq_speech_q1+ssq_speech_q4+ssq_speech_q10+ssq_speech_q11+ssq_speech_q12+class, data = dat, parms = list(prior=c(0.02,0.17,0.25,0.33,0.23), split="information"), cp=0.003)
+
+rpart.plot(fi, box.palette = "Blues")
+fi$variable.importance
+```
+
+
+```{r}
+complex.melted.ssq <- t3.data.ssq.no.na %>% 
+  filter(record_id %in% df_ssq_base$record_id & record_id %in% df_ssq_follow$record_id) %>% 
+  group_by(record_id) %>% 
+  summarise_if(is.numeric, function(x)last(x)-first(x)) %>% 
+  select(-"ssq_sound_mean",-"ssq_space_mean",-"ssq_speech_mean") %>% melt %>% mutate(category=str_split(string=variable, pattern="_", simplify = T)[,2])
+
+complex.melted.ssq %>% 
+  ggplot(aes(x=variable, y=value, fill=category)) + geom_boxplot() + coord_flip() + theme_minimal()+xlab("Question") + ylab("Difference") + labs(fill="Question\nCategory") + scale_fill_manual(values = col3_red) + ggtitle("Change from baseline to follow up")
+```
+
+
+```{r}
+hig.ids <- complex.ssq %>% filter
+```
+
+
+## SSQ
+### Speech
+1. You are talking with one other person and there is a TV on in the same room. Without turning the TV down, can you follow what the person you’re talking to says?
+
+*2. You are talking with one other person in a quiet, carpeted loungeroom. Can you follow what the other person says?*
+*3. You are in a group of about five people, sitting round a table. It is an otherwise quiet place. You can see everyone else in the group. Can you follow the conversation?*
+
+4. You are in a group of about five people in a busy restaurant. You can see everyone else in the group.  Can you follow the conversation?
+
+*5. You are talking with one other person. There is continuous background noise, such as a fan or running water. Can you follow what the person says?*
+*6. You are in a group of about five people in a busy restaurant. You CANNOT see everyone else in the group.  Can you follow the conversation?*
+*7. You are talking to someone in a place where there are a lot of echoes, such as a church or railway terminus building. Can you follow what the other person says?*
+*8. Can you have a conversation with someone when another person is speaking whose voice is the same pitch as the person you’re talking to?*
+*9. Can you have a conversation with someone when another person is speaking whose voice is different in pitch from the person you’re talking to?*
+
+10. You are listening to someone talking to you, while at the same time trying to follow the news on TV. Can you follow what both people are saying?
+11. You are in conversation with one person in a room where there are many other people talking.  Can you follow what the person you are talking to is saying?
+12. You are with a group and the conversation switches from one person to another.  Can you easily follow the conversation without missing the start of what each new speaker is saying? 
+
+*13. Can you easily have a conversation on the telephone? *
+*14. You are listening to someone on the telephone and someone next to you starts talking.  Can you follow what’s being said by both speakers?*
+
+### Space
+*1. You are outdoors in an unfamiliar place.  You hear someone using a lawnmower.  You can’t see where they are.  Can you tell right away where the sound is coming from?*
+*2. You are sitting around a table or at a meeting with several people. You can’t see everyone.  Can you tell where any person is as soon as they start speaking?*
+*3. You are sitting in between two people.  One of them starts to speak.  Can you tell right away whether it is the person on your left or your right, without having to look?*
+*4. You are in an unfamiliar house.  It is quiet.  You hear a door slam.  Can you tell right away where that sound came from?*
+*5. You are in the stairwell of a building with floors above and below you.  You can hear sounds from another floor.  Can you readily tell where the sound is coming from?*
+6. You are outside.  A dog barks loudly.  Can you tell immediately where it is, without having to look?
+*7. You are standing on the footpath of a busy street.  Can you hear right away which direction a bus or truck is coming from before you see it?*
+*8. In the street, can you tell how far away someone is, from the sound of their voice or footsteps?*
+9. Can you tell how far away a bus or a truck is, from the sound?
+*10. Can you tell from the sound which direction a bus or truck is moving, for example, from your left to your right or right to left?*
+*11. Can you tell from the sound of their voice or footsteps which direction a person is moving, for example, from your left to your right or right to left?*
+*12. Can you tell from their voice or footsteps whether the person is coming towards you or going away?*
+13. Can you tell from the sound whether a bus or truck is coming towards you or going away?
+*14. Do the sounds of things you are able to hear seem to be inside your head rather than out there in the world?*
+*15. Do the sounds of people or things you hear, but cannot see at first, turn out to be closer than expected when you do see them?*
+*16. Do the sounds of people or things you hear, but cannot see at first, turn out to be further away than expected when you do see them?*
+*17. Do you have the impression of sounds being exactly where you would expect them to be?*
+
+### Sound
+*1. Think of when you hear two things at once, for example, water running into a basin and, at the same time, a radio playing.  Do you have the impression of these as sounding separate from each other?*
+2. When you hear more than one sound at a time, do you have the impression that it seems like a single jumbled sound? 
+*3. You are in a room and there is music on the radio.  Someone else in the room is talking.  Can you hear the voice as something separate from the music?*
+*4. Do you find it easy to recognise different people you know by the sound of each one’s voice?*
+*5. Do you find it easy to distinguish different pieces of music that you are familiar with?*
+*6. Can you tell the difference between different sounds, for example, a car versus a bus; water boiling in a pot versus food cooking in a frypan?*
+7. When you listen to music, can you make out which instruments are playing?
+*8. When you listen to music, does it sound clear and natural?*
+9. Do everyday sounds that you can hear easily seem clear to you (not blurred)?
+*10. Do other people’s voices sound clear and natural?*
+*11. Do everyday sounds that you hear seem to have an artificial or unnatural quality?*
+*12. Does your own voice sound natural to you?*
+*13. Can you easily judge another person’s mood from the sound of their voice?*
+14. Do you have to concentrate very much when listening to someone or something?
+*15. Do you have to put in a lot of effort to hear what is being said in conversation with others?*
+*16. When you are the driver in a car can you easily hear what someone is saying who is sitting alongside you?*
+*17. When you are a passenger can you easily hear what the driver is saying sitting alongside you?*
+*18. Can you easily ignore other sounds when trying to listen to something?*

@@ -1,0 +1,59 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+install.packages('relaimpo')
+library(relaimpo)
+```
+
+
+```{r}
+
+requireLibrary('rpart')
+requireLibrary('partykit')
+requireLibrary('rpart.plot')
+requireLibrary('randomForest')
+
+ssq_use <- merge(t3.data.ssq.diff, df_use_group[,c(1,7)], by='record_id')
+
+t3.data.ssq %>% filter(redcap_event_name == 'baseline_arm_1')
+test <- t3.data.ssq
+
+#test <- t3.data.ssq %>% 
+ # filter(record_id %in% filter(t3.data.ssq, redcap_event_name =='baseline_arm_1') & 
+  #         record_id %in% filter(t3.data.ssq, redcap_event_name =='besoeg2_arm_1')) %>% 
+ # group_by(record_id) %>% 
+  #summarise_if(is.numeric, function(x)last(x)-first(x))
+
+#ssq_use <- merge(ssq_use, test[,c(1,14:16)], by='record_id')
+
+eq <- ha_usetime_hours_per_day ~ ssq_speech_q1 + ssq_speech_q4 + ssq_speech_q10 + ssq_speech_q11 + ssq_speech_q12 + 
+  ssq_space_q6 + ssq_space_q9 + ssq_space_q13 + 
+  ssq_sound_q7 + ssq_sound_q9 + ssq_sound_q14 + ssq_sound_q2
+
+#ssq
+fit.forest <- randomForest(eq, data=ssq_use)
+
+fit1.rpart <- rpart(eq, data = ssq_use, method = "anova", maxdepth = 15, parms = list(split = "information"), cp=0.005)
+
+# print
+randomForest::importance(fit.forest)
+
+print(fit.forest)
+
+# plot ssq
+rpart.plot(fit1.rpart)
+
+
+# lin reg
+fit <- lm(eq, data=ssq_use)
+plot(fit)
+summary(fit)
+df_ssq.wider
+filter(ssq_use, ssq_speech_mean < -20)
+
+```
+
+

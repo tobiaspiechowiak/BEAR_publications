@@ -1,0 +1,386 @@
+---
+title: "Reduce null values"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, echo=FALSE}
+source("setup.R")
+col2 <-c("#FDAE61",  "#74ADD1")
+col3_red <-c("#F46D43", "#FDAE61", "#74ADD1")
+col3_blue <- c("#FDAE61", "#74ADD1", "#4575B4")
+col5 <- c("#D73027","#F46D43","#FEE090","#74ADD1","#4575B4")
+
+requireLibrary("ggpmisc")
+requireLibrary("tidyverse")
+requireLibrary("reshape2")
+requireLibrary("scales")
+requireLibrary("gridExtra")
+```
+
+
+## Overall
+```{r, fig.asp=0.4}
+users <- replace_na(df_ha_use[,c(1,3)], list(own_ha="No")) %>% 
+  mutate(fifteen_d_baseline = record_id %in% df_15d_base[df_15d_base$d_complete=="Complete",]$record_id, 
+         fifteen_d_followup = record_id %in% df_15d_follow[df_15d_follow$d_complete=="Complete",]$record_id, 
+         thi_baseline = record_id %in% df_thi_baseline[df_thi_baseline$tinnitus_complete=="Complete"|
+                                                         df_thi_baseline$tinnitus%in%c("No","Don't know"),]$record_id, 
+         thi_followup = record_id %in% df_thi_followup[df_thi_followup$tinnitus_complete=="Complete"|
+                                                         df_thi_followup$tinnitus%in%c("No","Don't know"),]$record_id, 
+         ssq_baseline = record_id %in% df_ssq_base[df_ssq_base$ssq12_dk_complete=="Complete",]$record_id, 
+         ssq_followup = record_id %in% df_ssq_follow[df_ssq_follow$ssq12_dk_complete=="Complete",]$record_id, 
+         ioi_baseline = record_id %in% df_ioi_base[df_ioi_base$ioiha_dk_complete=="Complete",]$record_id, 
+         ioi_followup = record_id %in% df_ioi_follow[df_ioi_follow$ioiha_dk_complete=="Complete",]$record_id)
+ggplot(users %>% melt(id.vars=c("record_id", "own_ha")), aes(x=variable, fill=value)) + geom_bar() + coord_flip() + facet_wrap(vars(own_ha), labeller = label_both) + labs(fill="Has answered", x="Questionaire", y="Count")
+```
+
+```{r, fig.asp=0.4, fig.width=6}
+data.frame(
+  thi=nrow(df_thi)-nrow(na.omit(df_thi)),
+  ssq=nrow(df_ssq)-nrow(na.omit(df_ssq)),
+  ioi=nrow(df_ioi)-nrow(na.omit(df_ioi)),
+  "15d"=nrow(df_15d)-nrow(na.omit(df_15d))
+) %>% melt %>% ggplot(aes(x=variable, y=value)) + geom_col(fill=col2[1], color="black", width = 0.3) + labs(x="Questionnaire", y="Rows with missing values") + scale_x_discrete(labels = c("THI", "SSQ12", "IOI-HA","15D")) + theme_light()
+```
+
+
+## SSQ
+
+```{r, fig.width=12, fig.asp=0.3}
+melted_ssq <- t3.data.ssq %>% select(record_id, redcap_event_name, starts_with("ssq_"), -ends_with("_mean"), ssq12_dk_complete) %>%
+  melt(id.vars=c("record_id", "redcap_event_name","ssq12_dk_complete"))
+
+
+
+nas_ssq <- melted_ssq %>% 
+  group_by(record_id, redcap_event_name, ssq12_dk_complete) %>% 
+  summarize(nas=sum(is.na(value)))
+
+grid.arrange(
+  ggplot(melted_ssq, aes(x=variable,fill=cut(value, breaks = seq(0,100,10), include.lowest = T))) + 
+    geom_bar() + coord_flip() + labs(fill="value"),
+  nas_ssq %>% 
+    group_by(nas, ssq12_dk_complete) %>% summarise(cou=n()) %>% 
+    ggplot(aes(x=nas, y=cou, fill=ssq12_dk_complete)) + geom_col(position = "dodge") + ylim(0,300) + 
+    geom_text(aes(label=cou), position = position_dodge(width=1)) + 
+    scale_x_continuous(breaks=1:12,labels=1:12) + ggtitle("Amount of observations with X missing values"),
+  ncol=2
+)
+```
+We see that most observations have less than 6 missing values, giving something to use to estimate them. Most of the ones with no answers are marked as incomplete, except for a surprisingly large group of 31 being marked as complete?
+
+```{r,fig.asp=0.3}
+users %>%
+  select(record_id, own_ha, ssq_baseline, ssq_followup) %>%
+  melt(id.vars=c("record_id", "own_ha")) %>% 
+  ggplot(aes(x=variable, fill=value)) + 
+  geom_bar() +  
+  labs(fill="Has answered", x="Questionaire")
+```
+
+
+Just setting all null values to the mean for that question could shift the distribution too much, instead an option is to cluster the answers based on the values that are there, calculating the mean for the cluster.
+
+```{r}
+ssq_means_naomit <- t3.data.ssq %>% filter(!is.na(.$ssq_speech_mean) & !is.na(.$ssq_space_mean) & !is.na(.$ssq_sound_mean)) # filter out the worst na's (the ones where an entire category of questions where na)
+a <- ssq_means_naomit[,16:18] %>% kmeans(40) # cluster them by the mean (less problems with na's)
+ssq_means_naomit$Cluster <- a$cluster
+ssq_means_naomit <- ssq_means_naomit %>% 
+  group_by(Cluster) %>% 
+  mutate_if(is.numeric, function(x) ifelse(is.na(x),mean(x, na.rm = T), x)) # replace all na values with the mean of the column in the cluster
+t3.data.ssq.no.na <- ssq_means_naomit[, names(ssq_means_naomit) != "Cluster"]
+```
+
+Making a ssq difference from the no na data frame, for convenience.
+```{r}
+t3.diff.ssq.no.na <- t3.data.ssq.no.na %>% 
+  group_by(record_id) %>% filter(n()>1) %>% #grab only the observations with both a baseline and followup
+  summarise_all(funs(if(is.numeric(.)) last(.)-first(.) else first(.)))
+```
+
+### How the data changed
+```{r}
+grid.arrange(
+  ggplot(melt(t3.data.ssq[3:14], id.vars = NULL), aes(x=variable, fill=cut(value, breaks = seq(0,100,10), include.lowest = T))) + geom_bar() + coord_flip() + ylab("Before") + theme(legend.position = "none")+ylim(0,4000),
+  ggplot(melt(t3.data.ssq.no.na[3:14], id.vars = NULL), aes(x=variable, fill=cut(value, breaks = seq(0,100,10), include.lowest = T))) + geom_bar() + coord_flip() + ylab("After") + theme(legend.position = "none")+ylim(0,4000),
+  nrow=2
+)
+```
+The total amount of observations dropped by `r nrow(t3.data.ssq)-nrow(t3.data.ssq.no.na)`, but there are no nas and the distribution seems pretty similar.
+
+## THI
+```{r, fig.width=12, fig.asp=0.4}
+ggplot(df_thi[,c(2,3:29)] %>%  melt(id.vars=c("redcap_event_name","tinnitus")), aes(x=variable, fill=value)) + geom_bar() + facet_grid(redcap_event_name~tinnitus) + labs(fill="Answer to question", x="Question") + theme(axis.text.x = element_text(angle = 90))
+
+nas <- t3.data.thi %>% filter(tinnitus != "No") %>% group_by(tinnitus, redcap_event_name) %>% summarise_at(vars(starts_with("tinnitus_")), function(x)sum(is.na(x))) %>% 
+  rowwise() %>%
+  mutate(worst=max(tinnitus_konc:tinnitus_insecure)) %>% 
+  mutate(best=min(tinnitus_konc:tinnitus_insecure))
+
+
+spread(nas %>% select(tinnitus,redcap_event_name,worst),key = "tinnitus", value="worst")
+```
+Not many missing in people with tinnitus(Yes = `r nas[c(1,3),]$worst`, Don't Know = `r nas[c(2,4),]$worst`), can probably just replace them with *No*, without affecting the data too much
+```{r}
+#replace all na's with "No", since there aren't that many, that aren't just people without tinnitus(where it would be no anyway)
+t3.data.thi.no.na <- t3.data.thi %>%
+  mutate(tinnitus, tinnitus=replace_na(tinnitus,"No")) %>% 
+  mutate_at(vars(starts_with("tinnitus_"), -ends_with("complete")), function(x)replace_na(x,"No"))
+
+t3.data.thi.no.na$Score <- NULL
+t3.data.thi.no.na$THI_grade <- NULL
+
+t3.data.thi.no.na <- 
+  t3.data.thi.no.na %>%
+  select(record_id, redcap_event_name, starts_with("tinnitus_"),-ends_with("complete")) %>%
+  melt(id.vars=c("record_id", "redcap_event_name")) %>% 
+  group_by(record_id, redcap_event_name, value) %>% summarise(nes=n()) %>%
+  spread(value, nes, fill=0) %>% group_by(redcap_event_name, record_id) %>% 
+  mutate(Score = No*0+Occasionally*2+Yes*4) %>%
+  summarise(Score=sum(Score)) %>% 
+  mutate(THI_grade=cut(Score, 
+                        breaks=c(0,16,36,56,76,100),
+                        labels=c("Very mild", "Mild", "Moderate", "Severe", "Catastrofic"),
+                        include.lowest = TRUE)) %>% 
+  merge(t3.data.thi.no.na, by=c("redcap_event_name", "record_id"))
+```
+
+### How the data changed
+
+```{r, fig.asp=0.55, fig.width=12}
+grid.arrange(
+  ggplot(t3.data.thi[,c(2,3:28)] %>%  melt(id.vars="redcap_event_name"), aes(x=variable, fill=value)) + geom_bar() + coord_flip() + facet_wrap(~redcap_event_name)+ ylab("Before"),
+  ggplot(t3.data.thi.no.na[,c(1,5:30)] %>%  melt(id.vars="redcap_event_name"), aes(x=variable, fill=value)) + geom_bar() + coord_flip() + facet_wrap(~redcap_event_name)+ ylab("After"),
+  nrow=2
+)
+```
+
+
+## IOI
+```{r, fig.asp=0.4}
+ioi_ha_ownership <- table("Owns Hearing Aid"=users$own_ha, "Has IOI Baseline"=users$ioi_baseline)
+ggplot(users %>% select(record_id, own_ha, ioi_baseline, ioi_followup) %>% melt(id.vars=c("record_id", "own_ha")), aes(x=variable, fill=value)) + geom_bar(color="black") + facet_wrap(vars(own_ha), labeller = label_both) + labs(fill="Has answered", x="Questionaire") + theme_light() + scale_fill_manual(values = colors2)
+```
+We see that the people that has a ioi baseline are the ones who had a hearing aid at baseline, with `r ioi_ha_ownership[1,2]` odd exceptions who answered it despite not owning a hearing aid prior(and `r ioi_ha_ownership[2,1]` who didn't answer, despite owning one). Given this, there should be no real way to fill in the missing baseline data for the ones who did not have a hearing aid.
+
+For the rest, we attempt to cluster them based on there existing values. As the kmeans method does not work with missing values, each missing value is temporarily replaced with the mean for that column, then later replaced with the mean of the cluster it is in.
+
+```{r}
+iois <- c(round(mean(as.numeric(df_ioi$ioi_ha_1), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_2), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_3), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_4), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_5), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_6), na.rm=T)),
+          round(mean(as.numeric(df_ioi$ioi_ha_7), na.rm=T)))
+names(iois) <- names(df_ioi[3:9])
+a <- kmeans(replace_na(df_ioi[df_ioi$ioiha_dk_complete!="Incomplete",][3:9], as.list(iois)), 40)
+
+ioi_clustered <- df_ioi
+ioi_clustered$cluster <- -1
+ioi_clustered[ioi_clustered$ioiha_dk_complete!="Incomplete",]$cluster <- a$cluster
+
+ioi_clustered <- ioi_clustered %>% 
+  filter(cluster>-1) %>% 
+  group_by(cluster) %>% 
+  mutate_if(is.ordered, function(x) ifelse(is.na(x),as.integer(names(sort(-table(x)))[1]), x))
+
+df_ioi.no.na <- ioi_clustered[,1:10]
+df_ioi.no.na[,3:9] <- lapply(df_ioi.no.na[,3:9], factor, 
+                       levels=c(1,2,3,4,5), 
+                       ordered = TRUE)
+```
+
+A new data frame, df_ioi.no.na, has been made. The missing values were replaced by clustering(40 clusters) the observations together using k-means, with a data set were all missing values were replaced with 3(the middle value). The missing values were then replaced using the most common level in the cluster. (should the missing data be removed? given that there is no real way to estimate it)
+
+### How the data changed
+```{r}
+grid.arrange(
+  ggplot(melt(df_ioi[3:9], id.vars = NULL), aes(x=variable, fill=value)) + geom_bar() +
+    coord_flip() + ylab("Before") + ylim(0,4000) + labs(fill="Answer"),
+  ggplot(melt(df_ioi.no.na[3:9], id.vars = NULL), aes(x=variable, fill=value)) + geom_bar() +
+    coord_flip() + ylab("After") + ylim(0,4000) + labs(fill="Answer"),
+  nrow=2
+)
+```
+
+
+
+## 15D
+```{r, fig.width=12, fig.asp=0.3}
+melted_15d <- t3.data.15d %>% select(record_id, redcap_event_name, starts_with("fifteen_d_"), d_complete) %>%
+  melt(id.vars=c("record_id", "redcap_event_name","d_complete"))
+
+nas_15d <- melted_15d %>% 
+  group_by(record_id, redcap_event_name, d_complete) %>% 
+  summarize(nas=sum(is.na(value)))
+
+grid.arrange(
+  ggplot(melted_15d, aes(x=variable,fill=value)) + geom_bar() + coord_flip(),
+  nas_15d %>% 
+    group_by(nas, d_complete) %>% summarise(cou=n()) %>% 
+    ggplot(aes(x=nas, y=cou, fill=d_complete)) + geom_col(position = "dodge") + ylim(0,500) +
+    geom_text(aes(label=cou), position = position_dodge(width=1)) + scale_x_continuous(breaks=1:15,labels=1:15) +
+    ggtitle("Amount of observations with X missing values"),
+  ncol=2
+)
+
+
+```
+Here we have ~12% missing values, with most of them(249) with all questions missing answers. There are still `r 89+19+7+2+6+4+1+1+2+2+1` questions with only some values missing, most of these only have a single missing answer, making it feasible to give an estimate value. The observatins with no answers seem a lost cause, unless a correlation to another data set can be used. (ssq perhaps?)
+
+Same approach as with IOI? (Discard lost causes, cluster the rest)
+```{r}
+lost_causes <- nas_15d[nas_15d$nas>14,] # What should the limit of a lost cause be? right now there is no limit
+theds <- c(round(mean(as.numeric(t3.data.15d$fifteen_d_1_move), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_2_sight), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_3_hear), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_4_breathe), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_5_sleep), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_6_eat), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_7_speak), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_8_pee), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_9_activity), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_10_mental), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_11_unplesant), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_12_depression), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_13_stress), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_14_power), na.rm=T)),
+          round(mean(as.numeric(t3.data.15d$fifteen_d_15_sex), na.rm=T)))
+names(theds) <- names(t3.data.15d[3:17])
+# a <- kmeans(replace_na(t3.data.15d[t3.data.15d$d_complete!="Incomplete",][3:17], as.list(theds)), 40)
+a <- kmeans(replace_na(t3.data.15d[!t3.data.15d$record_id %in% lost_causes$record_id,][3:17], as.list(theds)), 40)
+
+fifteen_clustered <- t3.data.15d
+fifteen_clustered$cluster <- -1
+#fifteen_clustered[fifteen_clustered$d_complete!="Incomplete",]$cluster <- a$cluster
+fifteen_clustered[!fifteen_clustered$record_id %in% lost_causes$record_id,]$cluster <- a$cluster
+
+fifteen_clustered[fifteen_clustered$cluster!=-1,] <- fifteen_clustered[fifteen_clustered$cluster!=-1,] %>% 
+  group_by(cluster) %>% 
+  #mutate_if(is.ordered, function(x) ifelse(is.na(x),as.integer(names(sort(-table(x)))[1]), x))
+  mutate_at(vars(starts_with("fifteen_d_")), function(x) ifelse(is.na(x),as.integer(names(sort(-table(x)))[1]), x))
+
+t3.data.15d.no.na <- na.omit(fifteen_clustered[,1:21])
+t3.data.15d.no.na[,3:17] <- lapply(t3.data.15d.no.na[,3:17], factor, 
+                       levels=c(5,4,3,2,1), 
+                       ordered = TRUE)
+```
+
+
+### How the data changed
+```{r, fig.width=12, fig.asp=0.3}
+grid.arrange(
+  ggplot(melt(t3.data.15d[3:17], id.vars = NULL), aes(x=variable, fill=value)) + geom_bar() + coord_flip() + ylab("Before"),
+  ggplot(melt(t3.data.15d.no.na[3:17], id.vars = NULL), aes(x=variable, fill=value)) + geom_bar() + coord_flip() + ylab("After"),
+  ncol=2
+)
+```
+
+## HA-USE
+
+
+```{r, echo=FALSE}
+df_ha_use %>% 
+  melt(id.vars=c("record_id","redcap_event_name", "own_ha")) %>% 
+  group_by(own_ha, variable) %>% 
+  summarise(missing=sum(is.na(value)), present=sum(!is.na(value))) %>% 
+  ggplot(aes(x=variable, y=missing, fill=own_ha)) + 
+  geom_col(width = 0.4, position = position_nudge(x=-0.2)) + 
+  geom_col(aes(y=present), width=0.4, position = position_nudge(x=0.2), color="black") + 
+  coord_flip() + ggtitle("Black outline indicates values that are present(not missing)")
+```
+Observations where `own_ha` is No explains most of the NA's in `ha_number_of_ha`,`ha_use_time` and `ha_dispencer`. `ha_usetime_hours_per_day` seems to be more or less random in when it is NA, with a slightly larger proportion of observations with NA when `own_ha` is No. `ha_manufactor` seems to always be null, so that column can be removed.
+```{r}
+df_ha_use %>% filter(is.na(own_ha)) %>% merge(df_ioi, by=c("record_id","redcap_event_name")) # the observations where own_ha is na, has the ioi baseline na as well, which likely means that they did not have a hearing aid.
+```
+The two `own_ha` values that are missing, seems to easily be replaced with no, as the corresponding observations in `df_ioi` also are na(a null ioi baseline seems to indicate no previous hearing aid).
+
+```{r}
+df_ha_use.no.na <- df_ha_use
+df_ha_use.no.na$ha_manufactor <- NULL
+df_ha_use.no.na$ha_number_of_ha  <- df_ha_use.no.na$ha_number_of_ha %>% as.numeric
+df_ha_use.no.na$ha_dispencer  <- df_ha_use.no.na$ha_dispencer %>% as.character
+df_ha_use.no.na  <- df_ha_use.no.na %>% replace_na(list(ha_number_of_ha=0, ha_use_time=0, ha_dispencer="None",own_ha="No"))
+df_ha_use.no.na$ha_number_of_ha <- 
+  factor(df_ha_use.no.na$ha_number_of_ha, 
+         levels=c(0:3), 
+         labels = c("None","Both ears","Right ear","Left ear"))
+df_ha_use.no.na$ha_dispencer <- 
+  factor(df_ha_use.no.na$ha_dispencer)
+summary(df_ha_use.no.na)
+df_ha_use.no.na <- na.omit(df_ha_use.no.na) #The remaining nas are in ha_usetime_hours_per_day, not sure how to remove those without affecting our results, considering how central use time is, so just remove for now.
+```
+
+
+
+
+## Noise & tinnitus
+```{r}
+summary(df_tinnitus)
+```
+
+`noise_employment_yrs_2`... should that have been `noise_employment_yrs_1`? It has around 600 more NA's than the other noise_ columns, so it could be because it is from second jobs.
+
+```{r}
+filter(df_tinnitus, noise_at_work!="Yes") %>% summary
+```
+
+The observations where `noise_at_work` is not yes, has all the other noise_ columns be null.
+```{r}
+filter(df_tinnitus, noise_at_work=="Yes") %>% summary
+```
+
+The observations where the answer is yes, has very few na's, except `noise_employment_yrs_2` which has 671 na's. This seems to indicate that this is in fact from the patients second job, and that the data from their first job is missing. (Along with all the other data from their second job)
+
+```{r}
+filter(df_tinnitus, is.na(noise_at_work))
+filter(df_tinnitus, is.na(tinnitus)) %>% summary
+
+table(is.na(df_tinnitus$noise_at_work), is.na(df_tinnitus$tinnitus))
+```
+All the observations where `noise_at_work` is na, has all the other noise_ columns be na as well, so it seems safe to replace these with "Don't know". Same thing with `tinnitus`
+
+```{r}
+df_tinnitus.no.na <- replace_na(df_tinnitus, list(
+  noise_at_work="Don't know",
+  tinnitus="Don't know"
+  ))
+```
+
+```{r}
+df_tinnitus.no.na %>% filter(noise_at_work == "Yes") %>% ggplot(aes(x=noise_industry_1, fill=tinnitus)) + geom_bar(position = "fill") + coord_flip()
+df_tinnitus.no.na %>% filter(noise_at_work == "Yes") %>% ggplot(aes(x=noise_industry_1, fill=tinnitus)) + geom_bar(position = "dodge") + coord_flip()
+```
+
+Looking at the plot, the missing value in `noise_industry_1`, where `noise_at_work` is Yes, is a Yes in tinnitus; the most common industry for Yes is `hånd/kons/anlæg` and the industry with the highest proportion of Yes is `hånd/serv/deta`. I decide to go with the most common, `hånd/kons/anlæg`, as it will affect the proportion less. (that said, there is only 1 na, so it is not going to affect much either way)
+
+```{r}
+df_tinnitus.no.na <- df_tinnitus.no.na %>% mutate(noise_industry_1=factor(ifelse(record_id=="364-662", 5, noise_industry_1), levels =1:13 , labels=levels(df_tinnitus$noise_industry_1))) # gotta refactor the variable, because R is being difficult, and converting the levels to numbers :/
+
+
+print(df_tinnitus.no.na %>% filter(record_id == "364-662"))
+```
+
+```{r}
+summary(df_tinnitus.no.na %>% filter(noise_at_work=="Yes"))
+
+how <- df_tinnitus.no.na %>% filter(noise_at_work=="Yes" & is.na(noise_type_1))
+
+how$noise_type_1 <- sample(na.omit(df_tinnitus$noise_type_1), 16)
+
+df_tinnitus.no.na[is.na(df_tinnitus.no.na$noise_type_1)&df_tinnitus.no.na$noise_at_work=="Yes",] <- how
+```
+
+## health
+```{r}
+df_health <- df_tinnitus %>% select(record_id, redcap_event_name, sex, age, tinnitus, noise_at_work, dissiness, hyperacusis)
+summary(df_health)
+df_health.no.na <- na.locf(df_health)
+summary(df_health.no.na)
+```
+
+
+

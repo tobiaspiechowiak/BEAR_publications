@@ -1,0 +1,43 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+df_own.ha <- df_motivation %>% filter(own_ha == "Yes")
+df_own.ha.no <- df_motivation %>% filter(own_ha == "No")
+
+df_own.ha.ssq <- merge(df_own.ha, t3.data.ssq.follow, by=c("record_id"))
+
+df_own.ha.ssq <- merge(df_own.ha, df_ioi %>% filter(redcap_event_name == "baseline_arm_1"), by="record_id")
+
+temp <- merge(df_own.ha, df_ioi %>% filter(redcap_event_name == "besoeg2_arm_1"), by="record_id")
+df_own.ha.no <- merge(df_own.ha.no, df_ioi %>% filter(redcap_event_name == "besoeg2_arm_1"), by="record_id")
+
+df_own.ha.ssq
+df_own.ha.no
+
+ggplot(df_own.ha.ssq %>% filter(!is.na(ioi_ha_4))) + geom_bar(aes(x = ioi_ha_4), fill="orange") + ggtitle(label = "Has your current HA been worth the trouble? (Baseline/owns HA)") + theme_minimal() + scale_x_discrete(labels=c('Not at all', 'Slightly', 'Moderately', 'Considerably', 'Significantly')) + xlab(label = "") + ylab(label = "Count")
+
+ggplot(df_own.ha.no %>% filter(!is.na(ioi_ha_4))) + geom_bar(aes(x= ioi_ha_4), fill="orange") + 
+  ggtitle(label = "Has your current HA been worth the trouble? (Follow-up)") +
+  theme_minimal() + xlab(label = "") + scale_x_discrete(labels=c('Not at all', 'Slightly', 'Moderately', 'Considerably', 'Significantly')) + ylab(label = "Count")
+
+ggplot(temp %>% filter(!is.na(ioi_ha_4))) + geom_bar(aes(x= ioi_ha_4), fill="orange") + 
+  ggtitle(label = "Has your current HA been worth the trouble? (Follow-up/o)") +
+  theme_minimal() + xlab(label = "") + scale_x_discrete(labels=c('Not at all', 'Slightly', 'Moderately', 'Considerably', 'Significantly')) + ylab(label = "Count")
+```
+
+
+
+
+
+
+
+
+
+

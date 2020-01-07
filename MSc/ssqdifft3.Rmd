@@ -1,0 +1,30 @@
+---
+title: "ssq-diff-base-truedrawer"
+output: html_document
+---
+
+```{r setup}
+source("setup.R")
+source("xgboost.R")
+```
+
+
+#A look at drawer users(T3) SSQ
+##Difference from baseline to follow up 
+
+```{r}
+t3.ssq.diff <- t3.data.ssq %>% na.omit %>% group_by(record_id) %>%
+  summarise_all(funs(if(is.numeric(.)) last(.)-first(.) else first(.)))
+```
+
+```{r}
+ggplot(melt(t3.ssq.diff, id.vars = c("record_id", "redcap_event_name", "ssq12_dk_complete", "IsDrawerUser"))) + geom_boxplot(aes(y=value, x=variable, fill=IsDrawerUser)) + coord_flip()
+```
+Overall subjects experienced an improvement in SSQ from baseline to follow up, but drawer users experienced less of an improvement in every question, with the space category seing more or less no improment for the average drawer user.
+
+```{r , fig.width=12, fig.asp=.4}
+ggplot(melt(t3.data.ssq, id.vars = c("record_id", "redcap_event_name", "ssq12_dk_complete", "IsDrawerUser"))) + geom_boxplot(aes(y=value, x=variable, fill=IsDrawerUser)) + coord_flip() + facet_wrap(vars(redcap_event_name))
+```
+
+Looking at the absolute values, we see that drawer users generally have a lower score on their follow up, even though their baseline is more or less the same as non-drawer users.
+
