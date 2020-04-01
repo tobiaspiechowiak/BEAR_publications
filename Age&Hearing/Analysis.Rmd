@@ -111,10 +111,10 @@ library('dplyr')
 
 attach(data.lr.gn.new)
 
-summary(aov(ssq_speech_mean.x ~ redcap_event_name))
-summary(aov(ssq_space_mean.x ~ redcap_event_name))
-summary(aov(ssq_sound_mean.x ~ redcap_event_name))
-summary(aov(ssq_mean ~ redcap_event_name))
+summary(aov(ssq_speech_mean.x ~ redcap_event_name * own_ha.x))
+summary(aov(ssq_space_mean.x ~ redcap_event_name * own_ha.x))
+summary(aov(ssq_sound_mean.x ~ redcap_event_name * own_ha.x))
+summary(aov(ssq_mean ~ redcap_event_name * own_ha.x))
 
 detach(data.lr.gn.new)
 
