@@ -1,0 +1,46 @@
+---
+title: "Hyperacusis"
+output: html_notebook
+---
+
+
+```{r}
+
+path <- '../REM_analysis/'
+source(paste0(path,'setup.R'))
+
+
+```
+
+
+```{r}
+
+drawer.user <- read.csv(paste0(path,'Drawer_SSQ_Audiogram.csv'))
+
+
+```
+
+drawer user: experienced vs. new-user
+
+```{r}
+pct <- vector()
+use_time_drawer <- df_ha_use[df_ha_use$ha_usetime_hours_per_day <= 2,]
+use_time_nonDrawer <- df_ha_use[df_ha_use$ha_usetime_hours_per_day > 2,]
+
+pct[1] <- as.vector(table(use_time_drawer$own_ha))[1] /   #percentage new users
+  sum(as.vector(table(use_time_drawer$own_ha))[1] + as.vector(table(use_time_drawer$own_ha))[2])
+
+pct[2] <- as.vector(table(use_time_drawer$own_ha))[2] /   #percentage new users
+  sum(as.vector(table(use_time_drawer$own_ha))[1] + as.vector(table(use_time_drawer$own_ha))[2])
+
+to.plot <- data.frame(pct,grp=c('New User','Experienced User'))
+
+ggplot(to.plot, aes(x=grp, pct)) +
+  geom_bar(stat = 'identity',width = .5,fill='#3399cc') + 
+  ylab('Percentage of Drawer User') + 
+  xlab('') + 
+  scale_y_continuous(limits = c(0,1))
+
+```
+
+

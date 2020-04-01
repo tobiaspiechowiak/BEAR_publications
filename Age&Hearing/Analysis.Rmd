@@ -30,7 +30,7 @@ df_ssq.wider$ssq_sound_mean <- rowMeans(df_ssq.wider[,grepl("ssq_sound", colname
 
 data.lr <- df_ssq.wider %>% merge(tmp, by = c('record_id') )
 
-data.lr <- data.lr[,-c(134,45:62,122,115)]
+data.lr <- data.lr[,-c(134,45:63,123,115)]
 
 data.lr.gn <- data.lr[data.lr$ha_manufactor.x == 'GN ReSound',]
 
@@ -38,6 +38,14 @@ data.lr.gn$ssq_mean <-  rowMeans(data.lr.gn[,c(21:23)], na.rm = TRUE)
 
 data.lr.gn <- data.lr.gn[!is.na(data.lr.gn$own_ha.x),] 
 
+```
+
+Now let's add use_time_per_hour to dataframe and filter out those that use it less than 6 h per day
+
+```{r}
+data.UTH <- df_ha_use %>% select('record_id','ha_usetime_hours_per_day') %>% filter(ha_usetime_hours_per_day < 6) 
+  
+data.lr.gn.new <- data.lr.gn %>% filter(!(record_id %in% data.UTH$record_id))
 
 
 ```
@@ -49,7 +57,7 @@ library('ggplot2')
 library('gridExtra')
 
 
-p1 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_speech_mean.x, fill = redcap_event_name)) + 
+p1 <- data.lr.gn.new %>% ggplot(aes(x = own_ha.x, y = ssq_speech_mean.x, fill = redcap_event_name)) + 
   geom_boxplot(width = 0.5) + scale_x_discrete(labels = c('New Users','Experienced')) + 
   labs(x = '',y = '',title = 'SSQ Speech') + scale_fill_discrete(name = 'Visit', labels = c('','')) +
   theme(axis.text = element_text(size = 20),
@@ -59,7 +67,7 @@ p1 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_speech_mean.x, fill = redc
         title = element_text(size = 23),
         legend.position = 'none') 
     
-p2 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_space_mean.x, fill = redcap_event_name)) + 
+p2 <- data.lr.gn.new %>% ggplot(aes(x = own_ha.x, y = ssq_space_mean.x, fill = redcap_event_name)) + 
   geom_boxplot(width = 0.5) + scale_x_discrete(labels = c('New Users','Experienced')) + 
   labs(x = '',y = '',title = 'SSQ Space') + scale_fill_discrete(name = 'Visit', labels = c('','')) +
   theme(axis.text = element_text(size = 20),
@@ -69,7 +77,7 @@ p2 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_space_mean.x, fill = redca
         title = element_text(size = 23),
         legend.position = 'none') 
 
-p3 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_sound_mean.x, fill = redcap_event_name)) + 
+p3 <- data.lr.gn.new %>% ggplot(aes(x = own_ha.x, y = ssq_sound_mean.x, fill = redcap_event_name)) + 
   geom_boxplot(width = 0.5) + scale_x_discrete(labels = c('New Users','Experienced')) + 
   labs(x = '',y = '',title = 'SSQ Sound') + scale_fill_discrete(name = 'Visit', labels = c('1st','2nd')) +
   theme(axis.text = element_text(size = 20),
@@ -79,7 +87,7 @@ p3 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_sound_mean.x, fill = redca
         title = element_text(size = 23),
         legend.position = 'none')
   
-p4 <- data.lr.gn %>% ggplot(aes(x = own_ha.x, y = ssq_mean, fill = redcap_event_name)) +   
+p4 <- data.lr.gn.new %>% ggplot(aes(x = own_ha.x, y = ssq_mean, fill = redcap_event_name)) +   
   geom_boxplot(width = 0.5) + scale_x_discrete(labels = c('New Users','Experienced')) + 
   labs(x = '',y = '',title = 'Mean (Speech, Space, Sound)') + scale_fill_discrete(name = 'Visit', labels = c('1st','2nd')) +
   theme(axis.text = element_text(size = 20),
@@ -95,11 +103,29 @@ grid.arrange(p1,p2,p3,p4,ncol = 2, nrow = 2)
 dev.off()
 
 ```
+Now let's do an anova:
+
+```{r}
+
+library('dplyr')
+
+attach(data.lr.gn.new)
+
+summary(aov(ssq_speech_mean.x ~ redcap_event_name))
+summary(aov(ssq_space_mean.x ~ redcap_event_name))
+summary(aov(ssq_sound_mean.x ~ redcap_event_name))
+summary(aov(ssq_mean ~ redcap_event_name))
+
+detach(data.lr.gn.new)
+
+```
+
+
 Plot SSQ dependence on ha use time: 
 
 ```{r}
-data.lr.gn.exp <- data.lr.gn[data.lr.gn$own_ha.x == 'Yes',]
-data.lr.gn.new <- data.lr.gn[data.lr.gn$own_ha.x == 'No',]
+data.lr.gn.exp <- data.lr.gn.new[data.lr.gn$own_ha.x == 'Yes',]
+data.lr.gn.new <- data.lr.gn.new[data.lr.gn$own_ha.x == 'No',]
 
 #experienced
 diff_speech<- data.lr.gn.exp$ssq_speech_mean.x[data.lr.gn.exp$redcap_event_name == 'besoeg2_arm_1'] - data.lr.gn.exp$ssq_speech_mean.x[data.lr.gn.exp$redcap_event_name == 'baseline_arm_1']

@@ -297,6 +297,7 @@ df_user_worstear <- df_audiogram %>% group_by(record_id) %>% summarise(class=max
 
 ids.t1 <- df_user_worstear %>% merge(df_audiogram, by = "record_id") %>% merge(df_ha_use, by=("record_id")) %>% filter(ha_usetime_hours_per_day < 3)
 ids.t3 <- df_user_worstear %>% merge(df_audiogram, by = "record_id") %>% merge(df_ha_use, by=("record_id")) %>% filter(class > "S1" & ha_usetime_hours_per_day < 3)
+ids.t6 <- df_user_worstear %>% merge(df_audiogram, by = "record_id") %>% merge(df_ha_use, by=("record_id")) %>% filter(ha_usetime_hours_per_day <= 6)
 
 t3.data.ssq <- df_ssq %>% mutate(IsT1DrawerUser=factor(record_id %in% ids.t1$record_id),
                                  IsT3DrawerUser=factor(record_id %in% ids.t3$record_id),
@@ -316,7 +317,7 @@ t3.data.15d <- df_15d %>% mutate(IsT1DrawerUser=factor(record_id %in% ids.t1$rec
 
 
 
-#mean audiogram 
+#mean audiogram change by Tobias March 2020
 
 df_audiogram <- read.csv(paste(datafolder,'MeanAudiogramClass.csv', sep='/'))
 
