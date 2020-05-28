@@ -12,7 +12,7 @@ if(!require("tidyverse")){
   install.packages("tidyverse")
   library(tidyverse)
 }
-datafolder <- "../../../Data/data/MsC"
+datafolder <- "../../Data/data/MsC"
 files <- c("15D-baseline.csv",
            "15D-followUP.csv",
            "Audiogram_left_classified.csv",

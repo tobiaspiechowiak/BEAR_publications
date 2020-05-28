@@ -175,7 +175,7 @@ ggplot(data = SSQ_plot,aes(x = Item, y = Loading, fill = Factors)) +
   geom_bar(stat = 'identity', position = 'stack') + 
   scale_fill_brewer(palette = 'Dark2') + 
   labs(title='Factor loadings for SSQ-12 items',subtitle = 'Cumulative variance = 79%') + 
-  theme(axis.text=element_text(size=22),
+  theme(axis.text=element_text(size=22, angle = 45, hjust = 1),
         axis.title = element_text(size=30),
         title = element_text(size=27),
         legend.text = element_text(size=27)) 
@@ -224,8 +224,8 @@ scree2 <- ggplot(fa_val, aes(x=Factor_number, y=Eigenvalue))+
   geom_hline(yintercept = 0, linetype='dashed',color='black') +
   scale_x_discrete(name = 'Factor number',limits=c(1:12)) +
   theme(text = element_text(size=19),
-        axis.text.x = element_text(size=19),
-        axis.text.y = element_text(size=19))
+        axis.text.x = element_text(size=22),
+        axis.text.y = element_text(size=22))
 
 #dev.off()
 
