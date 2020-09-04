@@ -1,0 +1,612 @@
+---
+title: "REM analysis"
+
+---
+
+```{r}
+
+source('setup.R')
+
+```
+
+
+Load the data: 
+
+```{r}
+
+library('openxlsx')
+library('dplyr')
+
+path.REM <- '../../Data/REM/'
+path.data <- '../../Data/data/'
+
+data.visit1 <- read.xlsx(paste0(path.data,'Copy_of_GN_data_Visit1.xlsx'),sheet = 1)
+data.visit2 <- read.xlsx(paste0(path.data,'Copy_of_GN_data_Visit2.xlsx'),sheet = 1)
+
+data.rem1 <- na.omit(read.csv(paste0(path.REM,'REIGandTarget65_ver3.csv')))
+data.rem2 <- na.omit(read.xlsx(paste0(path.REM,'REIG_Combined_Ver5.xlsx'),sheet = 1))
+
+
+colnames(ssq_diff)[1] <- c('RC_ID')
+colnames(df_ioi)[1] <- c('RC_ID')
+colnames(df_audiogram_left)[10] <- c('RC_ID')
+colnames(df_audiogram_right)[10] <- c('RC_ID')
+
+
+```
+Merge datasets: 
+
+
+
+Compare REIG targets to REM measurements in plot
+
+```{r}
+library('dplyr')
+library('ggplot2')
+library('reshape2')
+library('gridExtra')
+
+REIG.measured.left <- data.rem1 %>% select(RC_ID,REIG250L, REIG500L, REIG1000L, REIG2000L, REIG4000L, REIG8000L)
+REIG.measured.right <- data.rem1 %>% select(RC_ID,REIG250R, REIG500R, REIG1000R, REIG2000R, REIG4000R, REIG8000R)
+
+REIG.target.left <- data.rem1 %>% select(RC_ID,Target250L, Target500L, Target1000L, Target2000L, Target4000L, Target8000L)
+REIG.target.right <- data.rem1 %>% select(RC_ID,Target250R, Target500R, Target1000R, Target2000R, Target4000R, Target8000R)
+
+diff.left <- REIG.measured.left
+diff.right <- REIG.measured.right
+
+diff.left[,2:7] <- REIG.measured.left[,2:7] - REIG.target.left[,2:7]
+diff.right[,2:7] <- REIG.measured.right[,2:7] - REIG.target.right[,2:7]
+
+
+diff.left.plot <- diff.left %>% melt()
+diff.right.plot <- diff.right %>% melt()
+
+png('Deviation_target.png',width = 1000, height = 600)
+
+p1 <- ggplot(diff.left.plot, aes(variable,value)) + 
+  geom_boxplot(fill = 'lightblue', color = 'blue', outlier.alpha = 0.1, width = .4) + 
+  xlab('') + ylab('Measured - target gain (dB)') + labs(title = 'Left ear') + 
+  theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16)) +
+  scale_x_discrete(labels = c('250','500','1000','2000','4000','8000'))
+  
+p2 <- ggplot(diff.right.plot, aes(variable,value)) + 
+  geom_boxplot(fill = 'lightblue', color = 'blue', outlier.alpha = 0.1, width = .4) + 
+  xlab('') + ylab('') +labs(title = 'Right ear') +
+   theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16)) +
+  scale_x_discrete(labels = c('250','500','1000','2000','4000','8000'))
+  
+
+grid.arrange(p1,p2,ncol = 2)
+
+dev.off()
+
+
+```
+
+Now cluster subjects into differences for both ears
+
+```{r}
+library('stats')
+library('plyr')
+
+diff <- na.omit(merge(diff.left, diff.right, by=c('RC_ID')))
+
+
+# Determine number of clusters
+wss <- (nrow(diff)-1)*sum(apply(diff[,2:13],2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(diff[,2:13],
+   centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+
+#lets go for 5 cluster centers
+
+```
+
+Do actual clustering
+
+```{r}
+
+knr <- 4
+
+fit.kmeans <- kmeans(diff[,2:13],knr,nstart = 20)
+
+means.left <- as.data.frame(fit.kmeans$centers) %>% select(REIG250L, REIG500L, REIG1000L, REIG2000L, REIG4000L, REIG8000L)
+means.right <- as.data.frame(fit.kmeans$centers) %>% select(REIG250R, REIG500R, REIG1000R, REIG2000R, REIG4000R, REIG8000R)
+
+
+means.left.plot <- means.left %>% data.frame(seq(1,knr,1)) 
+means.right.plot <- means.right %>% data.frame(seq(1,knr,1)) 
+
+#colnames(means.left.plot) <-c(colnames(means.left),'cluster')
+#colnames(means.right.plot) <-c(colnames(means.right),'cluster')
+
+colnames(means.left.plot) <- c('250','500', '1000', '2000', '4000', '8000','cluster')
+colnames(means.right.plot) <- c('250','500', '1000', '2000', '4000', '8000','cluster')
+
+p1 <- means.left.plot %>% melt(id=c('cluster')) %>% ggplot(aes(x = variable, y = value, color = factor(cluster),group=factor(cluster))) +
+  geom_point(size=3) +
+  geom_line(size=1.5) +
+  xlab('') + ylab('Difference (dB)') + 
+  scale_y_continuous(limits= c(-60,10)) + 
+  theme(legend.position = 'none') + 
+  xlab('Frequency') + ylab('Difference (dB)') + 
+   theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16))
+  
+
+p2 <- means.right.plot %>% melt(id=c('cluster')) %>% ggplot(aes(x = variable, y = value, color=factor(cluster),group=factor(cluster))) +
+  geom_point(size=4) + 
+  geom_line(size=2) +
+  xlab('') + ylab('') +
+  scale_y_continuous(limits= c(-60,10)) + 
+  scale_color_discrete(name = 'Cluster',
+                      labels = c(paste0('1 ','(',as.character(fit.kmeans$size[1]),')'),
+                                 paste0('2 ','(',as.character(fit.kmeans$size[2]),')'),
+                                 paste0('3 ','(',as.character(fit.kmeans$size[3]),')'),
+                                 paste0('4 ','(',as.character(fit.kmeans$size[4]),')'))) + 
+  xlab('Frequency') + ylab('Difference (dB)') + 
+   theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16))
+
+  
+png('Cluster_REM_bil.png',width = 1200, height = 700)
+
+grid.arrange(p1,p2,ncol = 2)
+
+dev.off()
+
+```
+Add cluster class to data
+
+```{r}
+
+data.rem1.cluster <- data.rem1 %>% data.frame(fit.kmeans$cluster) %>% distinct()
+
+```
+
+
+Connect to IOI
+
+```{r}
+#merge with IOI
+data.merged.ioi <- df_ioi %>% merge(data.rem1.cluster, by = c('RC_ID')) %>% select('RC_ID','ioi_ha_1','ioi_ha_2','ioi_ha_3','ioi_ha_4','ioi_ha_5','ioi_ha_6',
+                                                                           'ioi_ha_7','fit.kmeans.cluster')
+
+data.ioi.plot <-  na.omit(data.merged.ioi) %>%  melt(id = c('RC_ID','fit.kmeans.cluster'))
+data.ioi.plot$value <- data.ioi.plot$value %>% as.numeric()
+
+data.ioi.agg <- aggregate(data.ioi.plot,by=list(data.ioi.plot$variable,data.ioi.plot$fit.kmeans.cluster),FUN=mean)
+
+png('REM_IOI_bil.png',width = 900, height = 600)
+
+ggplot(data.ioi.agg, aes(x=Group.1, y=value, fill = factor(Group.2))) + 
+  geom_bar(stat = 'identity',position = 'dodge')+ xlab('Item #') + ylab('Value')+
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16))
+
+dev.off()
+
+```
+
+Connect to SSQ difference
+
+```{r}
+#use %in% to make new data frame 
+
+ssq.base <- df_ssq_base %>% filter(record_id %in% df_ssq_follow$record_id) 
+ssq.diff <- df_ssq_follow[,-c(2)] #remove visit since we dont need that anymore
+ssq.diff[,2:18] <- ssq.diff[,2:18] - ssq.base[,3:19] 
+colnames(ssq.diff)[1] <- c('RC_ID')
+
+#now merge with rem 
+
+data.merged.ssq <- ssq.diff %>% merge(data.rem1.cluster, by = c('RC_ID')) %>% select(c(colnames(data.merged.ssq)[1:18],'fit.kmeans.cluster')) %>% distinct()
+data.ssq.plot <-  na.omit(data.merged.ssq) %>%  melt(id = c('RC_ID','fit.kmeans.cluster'))
+
+png('REM_SSQ_difference_bil.png',width = 1600, height = 900)
+
+ggplot(data.ssq.plot, aes(x=variable, y=value, fill = factor(fit.kmeans.cluster))) + 
+  geom_boxplot() + xlab('Item #') + ylab('Difference 1st to 2nd visit') + 
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 16),
+        axis.title.x = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        text = element_text(size=12))
+
+dev.off()
+
+
+```
+Now connect to audiogram
+
+```{r}
+
+
+data.aud.right <- read.csv(paste0(path.data,'Audiogram_right_classified.csv'))
+data.aud.left <- read.csv(paste0(path.data,'Audiogram_left_classified.csv'))
+
+colnames(data.aud.right)[which(colnames(data.aud.right) == 'ID')] <- c('RC_ID')
+colnames(data.aud.left)[which(colnames(data.aud.left) == 'ID')] <- c('RC_ID')
+
+#merge right side
+data.rem.aud.ssq.right <- data.merged.ssq %>% filter(RC_ID %in% data.aud.right$RC_ID) %>%
+  merge(data.aud.right, by = c('RC_ID'))
+
+data.rem.aud.ssq.left <- data.merged.ssq %>% filter(RC_ID %in% data.aud.left$RC_ID) %>%
+  merge(data.aud.left, by = c('RC_ID')) 
+
+
+data.rem.aud.ssq.right <- data.rem.aud.ssq.right %>% data.frame('EAR'=c('right'))
+data.rem.aud.ssq.left <- data.rem.aud.ssq.left %>% data.frame('EAR'=c('left'))
+
+
+colnames(data.rem.aud.ssq.left)[which(colnames(data.rem.aud.ssq.left) == 'Age')] <- c('AGE')
+
+
+data.rem.aud.ssq <- rbind(data.rem.aud.ssq.left,data.rem.aud.ssq.right)  %>% distinct()
+
+data.rem.aud.ssq.plot <- data.rem.aud.ssq  %>% select('AGE','fit.kmeans.cluster','Class','Gender','RC_ID',colnames(data.rem.aud.ssq)[2:18]) %>% na.omit() %>% melt(id = c('RC_ID','fit.kmeans.cluster','Class','AGE','Gender'))
+
+#data.rem.aud.ssq.plot <-  na.omit(data.rem.aud.ssq) %>%  melt(id = c('RC_ID','fit.kmeans.cluster','Class','AGE','Gender'))
+data.rem.aud.ssq.plot$value <- data.rem.aud.ssq.plot$value  %>% as.numeric()
+
+png('SSQ_REM_aud_bil.png',width = 2500, 1400)
+
+ggplot(data.rem.aud.ssq.plot, aes(x=variable, y=value, fill = factor(fit.kmeans.cluster))) + 
+  geom_boxplot() + xlab('Item #') + ylab('Difference 1st to 2nd visit') + 
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 16),
+        axis.title.x = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        text = element_text(size=12))  + 
+  facet_wrap(~Class, ncol = 5)
+dev.off()
+
+```
+
+Now let's connect to the draw users (bilateral)
+
+
+```{r}
+tmp1 <- data.aud.cluster.ssq %>% select(colnames(data.aud.cluster.ssq)[9:25],'RC_ID','ClusterAud','AGE','Gender','Class','EAR')
+
+data.draw.cluster <- t3.data.ssq %>% select('RC_ID','IsT1DrawerUser') %>% merge(tmp1, by = c('RC_ID')) %>% distinct()
+
+data.draw.cluster <- transform(data.draw.cluster, SSQmean = rowMeans(data.draw.cluster[,3:19], na.rm = TRUE))
+
+library('rpart')
+library('partykit')
+
+fit.tree <- rpart(as.factor(ClusterAud) ~ SSQmean + Class + Gender + AGE, data = data.draw.cluster, control = rpart.control(cp = 0.01))
+
+png('Tree_REM.png', width = 1000, height = 800)
+
+plot(as.party(fit.tree))
+
+dev.off()
+
+```
+
+
+
+
+
+#####################################################################################################################################
+Do clustering only for one side
+
+```{r}
+
+library('dplyr')
+
+REIG.measured.left <- data.rem1 %>% select(RC_ID,REIG250L, REIG500L, REIG1000L, REIG2000L, REIG4000L, REIG8000L)
+REIG.measured.right <- data.rem1 %>% select(RC_ID,REIG250R, REIG500R, REIG1000R, REIG2000R, REIG4000R, REIG8000R)
+
+REIG.target.left <- data.rem1 %>% select(RC_ID,Target250L, Target500L, Target1000L, Target2000L, Target4000L, Target8000L)
+REIG.target.right <- data.rem1 %>% select(RC_ID,Target250R, Target500R, Target1000R, Target2000R, Target4000R, Target8000R)
+
+diff.left <- REIG.measured.left
+diff.right <- REIG.measured.right
+
+diff.left[,2:7] <- REIG.measured.left[,2:7] - REIG.target.left[,2:7]
+diff.right[,2:7] <- REIG.measured.right[,2:7] - REIG.target.right[,2:7]
+
+colnames(diff.left) <- c("RC_ID",   "250"  ,"500" , "1000" ,"2000", "4000" ,"8000")
+colnames(diff.right) <- c("RC_ID",  "250"  ,"500" , "1000" ,"2000", "4000" ,"8000")
+
+diff <- rbind(diff.right, diff.left) %>% select("250"  ,"500" , "1000" ,"2000", "4000" ,"8000")
+
+
+```
+
+
+```{r}
+# Determine number of clusters
+wss <- (nrow(diff)-1)*sum(apply(diff,2,var))
+for (i in 2:15) wss[i] <- sum(kmeans(diff,
+   centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+  ylab="Within groups sum of squares")
+
+#lets go for 3 cluster centers?
+
+
+```
+
+```{r}
+
+library('reshape2')
+library('ggplot2')
+library('gridExtra')
+
+knr <- 5
+
+fit.kmeans <- kmeans(diff,knr,nstart = 20)
+
+#means <- as.data.frame(fit.kmeans$centers) %>% select('250','500', '1000', '2000', '4000', '8000')
+
+means.plot <- fit.kmeans$centers %>% data.frame(seq(1,knr,1)) 
+
+colnames(means.plot) <- c('250','500', '1000', '2000', '4000', '8000','cluster')
+
+png('Cluster_REM.png',width = 800, 
+    height = 500)
+
+p2 <- means.plot %>% melt(id=c('cluster')) %>% ggplot(aes(x = variable, y = value, color=factor(cluster),group=factor(cluster))) +
+  geom_point(size=6) + 
+  geom_line(size=2) +
+  xlab('') + ylab('') +
+  scale_y_continuous(limits= c(-60,10)) + 
+  scale_color_discrete(name = 'Cluster',
+                      labels = c(paste0('1 ','(',as.character(fit.kmeans$size[1]),')'),
+                                 paste0('2 ','(',as.character(fit.kmeans$size[2]),')'),
+                                 paste0('3 ','(',as.character(fit.kmeans$size[3]),')'),
+                                 paste0('4 ','(',as.character(fit.kmeans$size[4]),')'),
+                                 paste0('5 ','(',as.character(fit.kmeans$size[5]),')'))) + 
+  xlab('Frequency') + ylab('Difference (dB)') + 
+   theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16))
+
+
+
+grid.arrange(p2,ncol = 1)
+
+dev.off()
+
+```
+
+```{r}
+
+data.rem1.cluster <- diff %>% data.frame(fit.kmeans$cluster) %>% data.frame(rbind(diff.left[1],diff.right[1])) 
+colnames(df_ioi)[which(colnames(df_ioi) == 'record_id')] <- c('RC_ID')
+
+```
+
+
+```{r}
+
+data.merged.ioi <- df_ioi %>% merge(data.rem1.cluster, by = c('RC_ID')) %>% select('RC_ID','ioi_ha_1','ioi_ha_2','ioi_ha_3','ioi_ha_4','ioi_ha_5','ioi_ha_6',
+                                                                           'ioi_ha_7','fit.kmeans.cluster') %>% distinct()
+
+data.ioi.plot <-  na.omit(data.merged.ioi) %>%  melt(id = c('RC_ID','fit.kmeans.cluster'))
+data.ioi.plot$value <- data.ioi.plot$value %>% as.numeric()
+
+data.ioi.agg <- aggregate(data.ioi.plot,by=list(data.ioi.plot$variable,data.ioi.plot$fit.kmeans.cluster),FUN=mean)
+
+png('REM_IOI.png', width= 1000, height = 500)
+
+ggplot(data.ioi.agg, aes(x=Group.1, y=value, fill = factor(Group.2))) + 
+  geom_bar(stat = 'identity',position = 'dodge') + xlab('Item #') + ylab('Value')+
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16))
+
+  
+dev.off()
+
+
+```
+
+
+
+
+```{r}
+#use %in% to make new data frame 
+
+ssq.base <- df_ssq_base %>% filter(record_id %in% df_ssq_follow$record_id) 
+ssq.diff <- df_ssq_follow[,-c(2)] #remove visit since we dont need that anymore
+ssq.diff[,2:18] <- ssq.diff[,2:18] - ssq.base[,3:19] 
+colnames(ssq.diff)[1] <- c('RC_ID')
+
+#now merge with rem 
+data.merged.ssq <- ssq.diff %>% merge(data.rem1.cluster, by = c('RC_ID')) %>% select(c(colnames(data.merged.ssq)[1:18],'fit.kmeans.cluster')) %>% distinct()
+
+data.ssq.plot <-  na.omit(data.merged.ssq) %>%  melt(id = c('RC_ID','fit.kmeans.cluster'))
+
+png('REM_SSQ_difference.png',width = 1300,height = 600)
+
+ggplot(data.ssq.plot, aes(x=variable, y=value, fill = factor(fit.kmeans.cluster))) + 
+  geom_boxplot() + xlab('Item #') + ylab('Difference 1st to 2nd visit') + 
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 16),
+        axis.title.x = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        text = element_text(size=12))
+
+dev.off()
+
+```
+
+Connect to audiogram 
+
+```{r}
+
+data.aud.right <- read.csv(paste0(path.data,'Audiogram_right_classified.csv'))
+data.aud.left <- read.csv(paste0(path.data,'Audiogram_left_classified.csv'))
+
+colnames(data.aud.right)[which(colnames(data.aud.right) == 'ID')] <- c('RC_ID')
+colnames(data.aud.left)[which(colnames(data.aud.left) == 'ID')] <- c('RC_ID')
+
+#merge right side
+data.rem.aud.ssq.right <- data.merged.ssq %>% filter(RC_ID %in% data.aud.right$RC_ID) %>%
+  merge(data.aud.right, by = c('RC_ID'))
+
+data.rem.aud.ssq.left <- data.merged.ssq %>% filter(RC_ID %in% data.aud.left$RC_ID) %>%
+  merge(data.aud.left, by = c('RC_ID')) 
+
+
+data.rem.aud.ssq.right <- data.rem.aud.ssq.right %>% data.frame('EAR'=c('right'))
+data.rem.aud.ssq.left <- data.rem.aud.ssq.left %>% data.frame('EAR'=c('left'))
+
+
+colnames(data.rem.aud.ssq.left)[which(colnames(data.rem.aud.ssq.left) == 'Age')] <- c('AGE')
+
+
+data.rem.aud.ssq <- rbind(data.rem.aud.ssq.left,data.rem.aud.ssq.right)  %>% distinct()
+
+data.rem.aud.ssq.plot <- data.rem.aud.ssq  %>% select('AGE','fit.kmeans.cluster','Class','Gender','RC_ID',colnames(data.rem.aud.ssq)[2:18]) %>% na.omit() %>% melt(id = c('RC_ID','fit.kmeans.cluster','Class','AGE','Gender'))
+
+#data.rem.aud.ssq.plot <-  na.omit(data.rem.aud.ssq) %>%  melt(id = c('RC_ID','fit.kmeans.cluster','Class','AGE','Gender'))
+data.rem.aud.ssq.plot$value <- data.rem.aud.ssq.plot$value  %>% as.numeric()
+
+png('SSQ_REM_aud.png',width = 2500, 1400)
+
+ggplot(data.rem.aud.ssq.plot, aes(x=variable, y=value, fill = factor(fit.kmeans.cluster))) + 
+  geom_boxplot() + xlab('Item #') + ylab('Difference 1st to 2nd visit') + 
+  scale_fill_discrete(name = 'Cluster'
+                       ) + 
+  theme(axis.title.y =  element_text(size = 16),
+        axis.title.x = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        text = element_text(size=12))  + 
+  facet_wrap(~Class, ncol = 5)
+dev.off()
+
+```
+
+Now do clustering depending on audiogram
+
+```{r}
+
+require('factoextra')
+
+data.aud.cluster <- merge(data.rem1.cluster,data.rem.aud.ssq, by = c('RC_ID'))
+
+freqs <- c('X250','X500','X1000','X2000','X4000','X8000')
+audClass <- c('N1','N2','N3','N4','N5','N6','N7','S1','S2','S3')
+
+diffs <- list()
+res <- list()
+#N1 
+
+for (idx in audClass) {
+
+diffs[[idx]] <- data.aud.cluster %>% filter(Class == idx) %>% select(freqs) 
+
+res[[idx]] <- fviz_nbclust(diffs[[idx]], FUNcluster = kmeans,method = 'wss')
+
+}
+
+```
+
+Now do actual clustering
+
+```{r}
+
+fit.kmeans <- list()
+
+clustNr <- c(3,4,4,3,2,2,2,2,2,3)
+
+p <- list()
+
+cluster <- list()
+
+for (idx in seq(audClass)) {
+  
+fit.kmeans[[idx]] <-  kmeans(diffs[[idx]],clustNr[idx],nstart = 20)
+
+cluster[[idx]] <- fit.kmeans[[idx]]$centers %>% data.frame(seq(fit.kmeans[[idx]]$size)) %>% data.frame(audClass[idx]) 
+
+}
+
+cluster.plot <- do.call(rbind,cluster)
+
+colnames(cluster.plot) <- c('250','500', '1000', '2000', '4000', '8000','cluster','aud')
+
+png('Cluster_audiogram.png',width = 1200, height = 800)
+
+
+#now plot the cluster
+cluster.plot %>% melt(id=c('cluster','aud')) %>% ggplot(aes(x = variable, y = value, group = factor(cluster), color = factor(cluster))) +
+  geom_point(size=4) + 
+  geom_line(size=2) +
+  xlab('') + ylab('') +
+  scale_y_continuous(limits= c(-60,10)) + 
+                       xlab('Frequency') + ylab('Difference (dB)') + 
+   theme(axis.title.y =  element_text(size = 15),
+        axis.title.x = element_text(size = 15),
+        legend.title = element_text(size = 16),
+        text = element_text(size = 16),
+        legend.position = 'none') + facet_wrap(~ aud)
+
+
+dev.off()
+
+```
+
+Now connect to SSQ
+
+```{r}
+
+tmp <- list()
+
+for (idx in seq(audClass)){
+  
+tmp[[idx]] <-  data.aud.cluster %>% filter(Class == audClass[idx]) %>% data.frame('ClusterAud' = fit.kmeans[[idx]]$cluster)
+  
+}
+
+data.aud.cluster.ssq <- do.call(rbind,tmp) %>% distinct()
+
+# plot SSQ difference per cluster 
+
+
+
+```
+
+Now let's connect to the draw users
+
+
+```{r}
+
+tmp1 <- data.aud.cluster.ssq %>% select(colnames(data.aud.cluster.ssq)[9:25],'RC_ID','ClusterAud','AGE','Gender','Class','EAR')
+
+data.draw.cluster <- t3.data.ssq %>% select('RC_ID','IsT1DrawerUser') %>% merge(tmp1, by = c('RC_ID')) %>% distinct()
+
+
+
+```
+
